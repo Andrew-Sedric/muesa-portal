@@ -28,6 +28,7 @@
     /* Form Grid */
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
     .form-group { display: flex; flex-direction: column; }
+    .form-group.full-width { grid-column: span 2; }
     label { font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #555; }
     input, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; width: 100%; }
     
@@ -51,7 +52,7 @@
     }
     .btn-delete:hover { background-color: #c9302c; }
 
-    /* Stats & Calculator */
+    /* Calculator */
     .calc-box {
       background: #eef7ed; border: 1px solid #c8e6c9; padding: 15px; border-radius: 6px;
       display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;
@@ -148,15 +149,22 @@
 
           <div class="form-group">
             <label>Payment Type</label>
-            <select id="payment_type" required>
+            <select id="payment_type" onchange="toggleCustomNoteField()" required>
               <option value="Subscription">Subscription</option>
               <option value="Renew">Renew</option>
+              <option value="Others">Others</option>
             </select>
           </div>
 
           <div class="form-group">
             <label>Amount Paid (UGX)</label>
             <input type="number" id="amount" placeholder="e.g. 20000" required>
+          </div>
+
+          <!-- DYNAMIC CUSTOM NOTE FIELD -->
+          <div class="form-group full-width" id="customNoteGroup" style="display: none;">
+            <label style="color: #004d26;">Custom Payment Details / Note</label>
+            <input type="text" id="custom_payment_note" placeholder="Specify details for 'Others' (e.g. T-Shirt, Trip Fee, Fine)">
           </div>
 
         </div>
@@ -193,12 +201,12 @@
             <option value="All">All Types</option>
             <option value="Subscription">Subscription</option>
             <option value="Renew">Renew</option>
+            <option value="Others">Others</option>
           </select>
         </div>
       </div>
 
       <div id="printableTableArea">
-        <h2 style="display: none;" class="print-header">MUESA Student Payment Report</h2>
         <table>
           <thead>
             <tr>
@@ -225,6 +233,22 @@
     let currentUser = null;
     let currentRole = null;
     let allRecords = [];
+
+    // TOGGLE CUSTOM NOTE INPUT FIELD
+    function toggleCustomNoteField() {
+      const type = document.getElementById('payment_type').value;
+      const noteGroup = document.getElementById('customNoteGroup');
+      const noteInput = document.getElementById('custom_payment_note');
+
+      if (type === 'Others') {
+        noteGroup.style.display = 'flex';
+        noteInput.required = true;
+      } else {
+        noteGroup.style.display = 'none';
+        noteInput.required = false;
+        noteInput.value = '';
+      }
+    }
 
     // LOGIN
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -278,6 +302,7 @@
         email: document.getElementById('email').value,
         phone: document.getElementById('phone').value,
         payment_type: document.getElementById('payment_type').value,
+        custom_payment_note: document.getElementById('custom_payment_note').value,
         amount: document.getElementById('amount').value,
         registered_by: currentUser
       };
@@ -298,6 +323,7 @@
             alert('Record saved in database (No email address provided).');
           }
           document.getElementById('studentForm').reset();
+          toggleCustomNoteField();
           if (currentRole === 'admin') loadRecords();
         } else {
           alert('Error: ' + (data.error || 'Failed to submit'));
@@ -325,7 +351,7 @@
 
       const filtered = allRecords.filter(r => {
         const matchYear = yearVal === 'All' || r.year === yearVal;
-        const matchType = typeVal === 'All' || r.payment_type === typeVal;
+        const matchType = typeVal === 'All' || (r.payment_type && r.payment_type.startsWith(typeVal));
         return matchYear && matchType;
       });
 
@@ -394,7 +420,6 @@
       const hasSelection = Array.from(checkboxes).some(cb => cb.checked);
 
       if (hasSelection) {
-        // Hide unselected rows temporarily for print
         checkboxes.forEach(cb => {
           const tr = cb.closest('tr');
           if (!cb.checked) {
@@ -404,7 +429,6 @@
           }
         });
       } else {
-        // Print all visible filtered records
         checkboxes.forEach(cb => {
           cb.closest('tr').classList.remove('no-print');
         });

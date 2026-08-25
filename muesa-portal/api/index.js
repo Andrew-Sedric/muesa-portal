@@ -75,6 +75,7 @@ module.exports = async (req, res) => {
         email,
         phone,
         payment_type,
+        custom_payment_note,
         amount,
         registered_by
       } = body;
@@ -82,6 +83,11 @@ module.exports = async (req, res) => {
       if (!student_name || !reg_no || !amount) {
         return res.status(400).json({ error: 'Missing required fields.' });
       }
+
+      // Format final payment type text
+      const finalPaymentType = (payment_type === 'Others' && custom_payment_note) 
+        ? `Others (${custom_payment_note})` 
+        : (payment_type || 'Subscription');
 
       // Insert record
       const query = `
@@ -96,7 +102,7 @@ module.exports = async (req, res) => {
         year || '',
         email || null,
         phone || null,
-        payment_type || 'Subscription',
+        finalPaymentType,
         amount,
         registered_by || 'Admin'
       ];
@@ -135,7 +141,7 @@ module.exports = async (req, res) => {
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Reg / Student No:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${reg_no}</td></tr>
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Class / Semester:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${student_class}</td></tr>
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Year:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${year}</td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Payment Type:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${payment_type}</td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Payment Type:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${finalPaymentType}</td></tr>
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Amount Paid:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0; color: #006633; font-weight: bold;">UGX ${Number(amount).toLocaleString()}</td></tr>
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Registered By:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${registered_by}</td></tr>
                   </table>
