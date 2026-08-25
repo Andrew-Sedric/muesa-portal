@@ -1,7 +1,6 @@
 const mysql = require('mysql2/promise');
 const nodemailer = require('nodemailer');
 
-// TiDB Connection Pool
 const pool = mysql.createPool({
   host: process.env.TIDB_HOST,
   user: process.env.TIDB_USER,
@@ -14,7 +13,6 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
-// Nodemailer Transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -32,26 +30,22 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // GET: Fetch all student records
   if (req.method === 'GET') {
     try {
       const [rows] = await pool.query('SELECT * FROM students ORDER BY id DESC');
       return res.status(200).json(rows);
     } catch (error) {
       console.error('Fetch error:', error);
-      return res.status(500).json({ error: 'Failed to fetch records.' });
+      return res.status(500).json({ error: error.message });
     }
   }
 
-  // POST: Login & Student Registration
   if (req.method === 'POST') {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
       const { action, username, password } = body;
 
-      // Handle Login Verification
       if (action === 'login' || (username !== undefined && password !== undefined)) {
-        // Authenticate against your database or default credentials
         if (
           (username === 'president_muesa' && password === 'muesa2026') ||
           (username === 'financial_muesa' && password === 'muesa2026')
@@ -62,7 +56,6 @@ module.exports = async (req, res) => {
         }
       }
 
-      // Handle New Student Registration
       const {
         student_name,
         reg_no,
@@ -79,24 +72,33 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'Missing required fields.' });
       }
 
-      // Insert record into TiDB
-      const [result] = await pool.query(
-        `INSERT INTO students (student_name, reg_no, student_class, year, email, phone, payment_type, amount, registered_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-        [
-          student_name,
-          reg_no,
-          student_class || '',
-          year || '',
-          email || null,
-          phone || null,
-          payment_type || 'Subscription',
-          amount,
-          registered_by || 'Admin'
-        ]
-      );
+      // Check existing columns in TiDB table to map correctly
+      const [columns] = await pool.query('SHOW COLUMNS FROM students');
+      const colNames = columns.map(c => c.Field);
 
-      // Dispatch Email Receipt if Email is provided
+      const nameCol = colNames.includes('student_name') ? 'student_name' : (colNames.includes('name') ? 'name' : 'student_name');
+      const regCol = colNames.includes('reg_no') ? 'reg_no' : (colNames.includes('regNo') ? 'regNo' : 'reg_no');
+      const classCol = colNames.includes('student_class') ? 'student_class' : (colNames.includes('class') ? 'class' : 'student_class');
+      const typeCol = colNames.includes('payment_type') ? 'payment_type' : (colNames.includes('paymentType') ? 'paymentType' : 'payment_type');
+      const regByCol = colNames.includes('registered_by') ? 'registered_by' : (colNames.includes('registeredBy') ? 'registeredBy' : 'registered_by');
+
+      const insertCols = [nameCol, regCol, classCol, 'year', 'email', 'phone', typeCol, 'amount', regByCol];
+      const insertVals = [
+        student_name,
+        reg_no,
+        student_class || '',
+        year || '',
+        email || null,
+        phone || null,
+        payment_type || 'Subscription',
+        amount,
+        registered_by || 'Admin'
+      ];
+
+      const query = `INSERT INTO students (${insertCols.join(', ')}) VALUES (${insertCols.map(() => '?').join(', ')})`;
+      const [result] = await pool.query(query, insertVals);
+
+      // Email dispatch
       if (email && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
         try {
           await transporter.sendMail({
@@ -110,30 +112,25 @@ module.exports = async (req, res) => {
                 <hr style="border: 0; border-top: 1px solid #eee;" />
                 <p>Dear <strong>${student_name}</strong>,</p>
                 <p>Your payment has been successfully recorded on the MUESA Portal.</p>
-                
                 <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
                   <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Reg / Student No:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${reg_no}</td></tr>
                   <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Class / Year:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${student_class} ${year}</td></tr>
                   <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Payment Type:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${payment_type}</td></tr>
                   <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Amount Paid:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0; color: #006633; font-weight: bold;">UGX ${Number(amount).toLocaleString()}</td></tr>
                   <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Registered By:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${registered_by}</td></tr>
-                  <tr><td style="padding: 8px 0;"><strong>Date:</strong></td><td style="padding: 8px 0;">${new Date().toLocaleDateString()}</td></tr>
                 </table>
-
-                <hr style="border: 0; border-top: 1px solid #eee;" />
-                <p style="font-size: 12px; color: #6c757d;">This is an automated receipt generated by the MUESA Portal.</p>
               </div>
             `
           });
-        } catch (emailErr) {
-          console.error('Email Dispatch Error:', emailErr);
+        } catch (mailErr) {
+          console.error('Mail error:', mailErr);
         }
       }
 
       return res.status(200).json({ success: true, insertId: result.insertId });
     } catch (error) {
-      console.error('API Error:', error);
-      return res.status(500).json({ error: 'Server error recording student.' });
+      console.error('API Error Detailed:', error);
+      return res.status(500).json({ error: error.message || 'Server error recording student.' });
     }
   }
 
