@@ -47,6 +47,7 @@ module.exports = async (req, res) => {
   // Handle POST Requests (Login or Student Registration)
   if (req.method === 'POST') {
     try {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
       const {
         action,
         username,
@@ -59,10 +60,10 @@ module.exports = async (req, res) => {
         amount,
         registered_by,
         student_email
-      } = req.body || {};
+      } = body;
 
-      // Handle Login Verification
-      if (action === 'login' || (username && password)) {
+      // Check for Login Request
+      if (action === 'login' || (username !== undefined && password !== undefined)) {
         if (username === 'financial_muesa' && password === 'muesa2026') {
           return res.status(200).json({ success: true, message: 'Login successful' });
         } else {
@@ -79,7 +80,7 @@ module.exports = async (req, res) => {
       const [result] = await pool.query(
         `INSERT INTO students (student_name, reg_no, student_class, year, payment_type, amount, registered_by, student_email, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-        [student_name, reg_no, student_class, year, payment_type, amount, registered_by, student_email || null]
+        [student_name, reg_no, student_class, year, payment_type, amount, registered_by || 'Administrator', student_email || null]
       );
 
       // Send Receipt Email if recipient address and credentials are present
