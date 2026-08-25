@@ -44,10 +44,13 @@ module.exports = async (req, res) => {
     }
   }
 
-  // Handle New Student Registration & Receipt Dispatch
+  // Handle POST Requests (Login or Student Registration)
   if (req.method === 'POST') {
     try {
       const {
+        action,
+        username,
+        password,
         student_name,
         reg_no,
         student_class,
@@ -56,10 +59,20 @@ module.exports = async (req, res) => {
         amount,
         registered_by,
         student_email
-      } = req.body;
+      } = req.body || {};
 
+      // Handle Login Verification
+      if (action === 'login' || (username && password)) {
+        if (username === 'financial_muesa' && password === 'muesa2026') {
+          return res.status(200).json({ success: true, message: 'Login successful' });
+        } else {
+          return res.status(401).json({ error: 'Invalid username or password.' });
+        }
+      }
+
+      // Handle New Student Registration
       if (!student_name || !reg_no || !amount) {
-        return res.status(400).json({ error: 'Missing required fields.' });
+        return res.status(400).json({ error: 'Missing required student fields.' });
       }
 
       // Insert record into TiDB MySQL
@@ -69,7 +82,7 @@ module.exports = async (req, res) => {
         [student_name, reg_no, student_class, year, payment_type, amount, registered_by, student_email || null]
       );
 
-      // Send Receipt Email if an email address was provided
+      // Send Receipt Email if recipient address and credentials are present
       if (student_email && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
         try {
           await transporter.sendMail({
@@ -105,10 +118,10 @@ module.exports = async (req, res) => {
 
       return res.status(200).json({ success: true, insertId: result.insertId });
     } catch (error) {
-      console.error('Database Insert Error:', error);
-      return res.status(500).json({ error: 'Failed to record payment.' });
+      console.error('Database Request Error:', error);
+      return res.status(500).json({ error: 'An unexpected error occurred.' });
     }
   }
 
-  return res.status(45)
+  return res.status(405).json({ error: 'Method Not Allowed' });
 };
