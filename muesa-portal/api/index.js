@@ -13,14 +13,6 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -74,7 +66,7 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'Missing required fields.' });
       }
 
-      // Insert directly into cleaned schema columns
+      // Insert into TiDB
       const query = `
         INSERT INTO students (student_name, reg_no, student_class, year, email, phone, payment_type, amount, registered_by)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -94,36 +86,61 @@ module.exports = async (req, res) => {
 
       const [result] = await pool.query(query, values);
 
-      // Email Dispatch
-      if (email && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-        try {
-          await transporter.sendMail({
-            from: `"MUESA Official" <${process.env.EMAIL_USER}>`,
-            to: email,
-            subject: 'MUESA Official Payment Receipt',
-            html: `
-              <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; border: 1px solid #e0e0e0; border-radius: 8px;">
-                <h2 style="color: #006633; margin-top: 0;">MUESA Official Receipt</h2>
-                <p>Mutesa I Royal University Education Students Association</p>
-                <hr style="border: 0; border-top: 1px solid #eee;" />
-                <p>Dear <strong>${student_name}</strong>,</p>
-                <p>Your payment has been successfully recorded on the MUESA Portal.</p>
-                <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Reg / Student No:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${reg_no}</td></tr>
-                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Class / Year:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${student_class} ${year}</td></tr>
-                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Payment Type:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${payment_type}</td></tr>
-                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Amount Paid:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0; color: #006633; font-weight: bold;">UGX ${Number(amount).toLocaleString()}</td></tr>
-                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Registered By:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${registered_by}</td></tr>
-                </table>
-              </div>
-            `
-          });
-        } catch (mailErr) {
-          console.error('Mail Error:', mailErr);
+      // Initialize Nodemailer dynamically inside handler
+      let emailSent = false;
+      let emailErrorDetails = null;
+
+      if (email) {
+        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+          emailErrorDetails = 'Vercel environment variables EMAIL_USER or EMAIL_PASS are missing.';
+        } else {
+          try {
+            const transporter = nodemailer.createTransport({
+              service: 'gmail',
+              auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+              }
+            });
+
+            await transporter.sendMail({
+              from: `"MUESA Official" <${process.env.EMAIL_USER}>`,
+              to: email,
+              subject: 'MUESA Official Payment Receipt',
+              html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; border: 1px solid #e0e0e0; border-radius: 8px;">
+                  <h2 style="color: #006633; margin-top: 0;">MUESA Official Receipt</h2>
+                  <p>Mutesa I Royal University Education Students Association</p>
+                  <hr style="border: 0; border-top: 1px solid #eee;" />
+                  <p>Dear <strong>${student_name}</strong>,</p>
+                  <p>Your payment has been successfully recorded on the MUESA Portal.</p>
+                  <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Reg / Student No:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${reg_no}</td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Class / Year:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${student_class} ${year}</td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Payment Type:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${payment_type}</td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Amount Paid:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0; color: #006633; font-weight: bold;">UGX ${Number(amount).toLocaleString()}</td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Registered By:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${registered_by}</td></tr>
+                  </table>
+                  <hr style="border: 0; border-top: 1px solid #eee;" />
+                  <p style="font-size: 12px; color: #6c757d;">Automated receipt generated by the MUESA Portal.</p>
+                </div>
+              `
+            });
+            emailSent = true;
+          } catch (mailErr) {
+            console.error('Mail Dispatch Error:', mailErr);
+            emailErrorDetails = mailErr.message;
+          }
         }
       }
 
-      return res.status(200).json({ success: true, insertId: result.insertId });
+      return res.status(200).json({ 
+        success: true, 
+        insertId: result.insertId,
+        emailSent: emailSent,
+        emailError: emailErrorDetails 
+      });
+
     } catch (error) {
       console.error('API Error:', error);
       return res.status(500).json({ error: error.message });

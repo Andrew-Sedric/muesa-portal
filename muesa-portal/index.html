@@ -214,7 +214,13 @@
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          alert('Record saved & email receipt sent!');
+          if (data.emailSent) {
+            alert('Record saved & official email receipt sent successfully!');
+          } else if (data.emailError) {
+            alert('Record saved in database, BUT Email failed: ' + data.emailError);
+          } else {
+            alert('Record saved in database (No email address provided).');
+          }
           document.getElementById('studentForm').reset();
           loadRecords();
         } else {
