@@ -7,7 +7,7 @@
   <style>
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     body { background-color: #f4f6f8; margin: 0; padding: 20px; color: #333; }
-    .container { max-width: 1000px; margin: 0 auto; }
+    .container { max-width: 1050px; margin: 0 auto; }
     
     /* Login Modal */
     #loginOverlay {
@@ -28,7 +28,6 @@
     /* Form Grid */
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
     .form-group { display: flex; flex-direction: column; }
-    .form-group.full-width { grid-column: span 2; }
     label { font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #555; }
     input, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; width: 100%; }
     
@@ -39,16 +38,38 @@
     }
     .btn-submit:hover { background-color: #003319; }
     .btn-logout { background: #fff; border: 1px solid #ccc; padding: 6px 15px; border-radius: 4px; cursor: pointer; }
+    
+    .btn-action {
+      background-color: #0275d8; color: white; border: none; padding: 8px 15px;
+      border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px;
+    }
+    .btn-action:hover { background-color: #025aa5; }
 
-    /* Table & Stats */
-    .stats-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px; }
-    .stat-card { background: #e8f5e9; padding: 15px; border-radius: 6px; text-align: center; }
-    .stat-card h4 { margin: 0; font-size: 12px; color: #2e7d32; text-transform: uppercase; }
-    .stat-card p { margin: 5px 0 0 0; font-size: 20px; font-weight: bold; color: #1b5e20; }
+    .btn-delete {
+      background-color: #d9534f; color: white; border: none; padding: 4px 8px;
+      border-radius: 3px; cursor: pointer; font-size: 12px;
+    }
+    .btn-delete:hover { background-color: #c9302c; }
+
+    /* Stats & Calculator */
+    .calc-box {
+      background: #eef7ed; border: 1px solid #c8e6c9; padding: 15px; border-radius: 6px;
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;
+    }
+    .calc-box h4 { margin: 0; font-size: 14px; color: #1b5e20; }
+    .calc-box span { font-size: 18px; font-weight: bold; color: #2e7d32; }
 
     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
     th, td { border: 1px solid #eee; padding: 10px; text-align: left; font-size: 13px; }
     th { background-color: #f8f9fa; font-weight: 600; }
+
+    /* Print Formatting */
+    @media print {
+      body * { visibility: hidden; }
+      #printableTableArea, #printableTableArea * { visibility: visible; }
+      #printableTableArea { position: absolute; left: 0; top: 0; width: 100%; }
+      .no-print { display: none !important; }
+    }
   </style>
 </head>
 <body>
@@ -145,21 +166,15 @@
 
     <!-- ADMIN-ONLY: RECORDS & FINANCIAL REPORTS -->
     <div class="card" id="reportsSection" style="display: none;">
-      <h3>Records & Financial Reports</h3>
-      
-      <div class="stats-bar">
-        <div class="stat-card">
-          <h4>Total Registrations</h4>
-          <p id="totalCount">0</p>
-        </div>
-        <div class="stat-card">
-          <h4>Total Revenue</h4>
-          <p id="totalRevenue">UGX 0</p>
-        </div>
-        <div class="stat-card">
-          <h4>Active Filters</h4>
-          <p id="filterStatus">All</p>
-        </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eef2f5; padding-bottom: 10px; margin-bottom: 15px;">
+        <h3 style="margin: 0; border: none; padding: 0;">Records & Financial Reports</h3>
+        <button class="btn-action" onclick="printSelectedRecords()">🖨️ Print Selected / Visible Records</button>
+      </div>
+
+      <!-- CALCULATOR BOX -->
+      <div class="calc-box">
+        <h4>Custom Sum Calculator (Selected Items: <span id="selectedCount">0</span>)</h4>
+        <div>Total Sum: <span id="calculatedSum">UGX 0</span></div>
       </div>
 
       <div class="form-grid" style="margin-bottom: 15px;">
@@ -182,21 +197,26 @@
         </div>
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Reg No</th>
-            <th>Sem</th>
-            <th>Year</th>
-            <th>Type</th>
-            <th>Amount (UGX)</th>
-            <th>Registered By</th>
-          </tr>
-        </thead>
-        <tbody id="recordsTableBody">
-        </tbody>
-      </table>
+      <div id="printableTableArea">
+        <h2 style="display: none;" class="print-header">MUESA Student Payment Report</h2>
+        <table>
+          <thead>
+            <tr>
+              <th class="no-print" style="width: 30px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th>
+              <th>Name</th>
+              <th>Reg No</th>
+              <th>Sem</th>
+              <th>Year</th>
+              <th>Type</th>
+              <th>Amount (UGX)</th>
+              <th>Registered By</th>
+              <th class="no-print" style="width: 60px;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="recordsTableBody">
+          </tbody>
+        </table>
+      </div>
     </div>
 
   </div>
@@ -206,7 +226,7 @@
     let currentRole = null;
     let allRecords = [];
 
-    // LOGIN DISPATCH
+    // LOGIN
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const username = document.getElementById('login_user').value;
@@ -287,7 +307,7 @@
       }
     });
 
-    // FETCH RECORDS (ADMIN ONLY)
+    // FETCH RECORDS
     async function loadRecords() {
       try {
         const res = await fetch('/api/index');
@@ -311,12 +331,11 @@
 
       const tbody = document.getElementById('recordsTableBody');
       tbody.innerHTML = '';
-      let sum = 0;
 
       filtered.forEach(r => {
-        sum += Number(r.amount || 0);
         const row = `
           <tr>
+            <td class="no-print"><input type="checkbox" class="record-checkbox" data-amount="${r.amount || 0}" onchange="calculateSelectedSum()"></td>
             <td>${r.student_name || r.full_name || '-'}</td>
             <td>${r.reg_no || '-'}</td>
             <td>${r.student_class || '-'}</td>
@@ -324,13 +343,74 @@
             <td>${r.payment_type || '-'}</td>
             <td>UGX ${Number(r.amount || 0).toLocaleString()}</td>
             <td>${r.registered_by || 'Admin'}</td>
+            <td class="no-print"><button class="btn-delete" onclick="deleteRecord(${r.id})">Delete</button></td>
           </tr>
         `;
         tbody.innerHTML += row;
       });
 
-      document.getElementById('totalCount').innerText = filtered.length;
-      document.getElementById('totalRevenue').innerText = `UGX ${sum.toLocaleString()}`;
+      document.getElementById('selectAll').checked = false;
+      calculateSelectedSum();
+    }
+
+    // CALCULATE SELECTED SUM
+    function calculateSelectedSum() {
+      const checkboxes = document.querySelectorAll('.record-checkbox:checked');
+      let sum = 0;
+      checkboxes.forEach(cb => {
+        sum += Number(cb.getAttribute('data-amount') || 0);
+      });
+      document.getElementById('selectedCount').innerText = checkboxes.length;
+      document.getElementById('calculatedSum').innerText = `UGX ${sum.toLocaleString()}`;
+    }
+
+    // TOGGLE SELECT ALL
+    function toggleSelectAll(masterCb) {
+      const checkboxes = document.querySelectorAll('.record-checkbox');
+      checkboxes.forEach(cb => cb.checked = masterCb.checked);
+      calculateSelectedSum();
+    }
+
+    // DELETE RECORD
+    async function deleteRecord(id) {
+      if (!confirm('Are you sure you want to permanently delete this record?')) return;
+      try {
+        const res = await fetch(`/api/index?id=${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('Record deleted successfully.');
+          loadRecords();
+        } else {
+          alert('Failed to delete record: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Error communicating with server.');
+      }
+    }
+
+    // PRINT RECORDS
+    function printSelectedRecords() {
+      const checkboxes = document.querySelectorAll('.record-checkbox');
+      const hasSelection = Array.from(checkboxes).some(cb => cb.checked);
+
+      if (hasSelection) {
+        // Hide unselected rows temporarily for print
+        checkboxes.forEach(cb => {
+          const tr = cb.closest('tr');
+          if (!cb.checked) {
+            tr.classList.add('no-print');
+          } else {
+            tr.classList.remove('no-print');
+          }
+        });
+      } else {
+        // Print all visible filtered records
+        checkboxes.forEach(cb => {
+          cb.closest('tr').classList.remove('no-print');
+        });
+      }
+
+      window.print();
     }
   </script>
 </body>

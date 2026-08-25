@@ -15,7 +15,7 @@ const pool = mysql.createPool({
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
@@ -33,13 +33,28 @@ module.exports = async (req, res) => {
     }
   }
 
+  // DELETE: Remove record (Admin action)
+  if (req.method === 'DELETE') {
+    try {
+      const { id } = req.query;
+      if (!id) {
+        return res.status(400).json({ error: 'Record ID is required.' });
+      }
+      await pool.query('DELETE FROM students WHERE id = ?', [id]);
+      return res.status(200).json({ success: true, message: 'Record deleted successfully.' });
+    } catch (error) {
+      console.error('Delete error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
   // POST: Login & Student Registration
   if (req.method === 'POST') {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
       const { action, username, password } = body;
 
-      // Authentication handling with role assignments
+      // Authentication handling
       if (action === 'login' || (username !== undefined && password !== undefined)) {
         if (username === 'admin' && password === 'HoD123') {
           return res.status(200).json({ success: true, user: username, role: 'admin' });
