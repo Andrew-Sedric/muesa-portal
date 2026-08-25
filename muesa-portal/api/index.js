@@ -1,4 +1,5 @@
 const mysql = require('mysql2/promise');
+const nodemailer = require('nodemailer');
 
 // Setup TiDB MySQL Database Connection Pool
 const pool = mysql.createPool({
@@ -13,6 +14,15 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
+// Create Nodemailer Transporter for Gmail
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
 module.exports = async (req, res) => {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -23,111 +33,82 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  const { action } = req.query;
-
-  try {
-    // 1. User Authentication (Login)
-    if (action === 'login' && req.method === 'POST') {
-      const { username, password } = req.body;
-      const [rows] = await pool.query(
-        'SELECT id, username, role FROM users WHERE username = ? AND password_hash = ?',
-        [username, password]
-      );
-
-      if (rows.length > 0) {
-        return res.status(200).json({ success: true, user: rows[0] });
-      } else {
-        return res.status(401).json({ success: false, message: 'Invalid Username or Password' });
-      }
+  // Handle Fetching Records
+  if (req.method === 'GET') {
+    try {
+      const [rows] = await pool.query('SELECT * FROM students ORDER BY id DESC');
+      return res.status(200).json(rows);
+    } catch (error) {
+      console.error('Database Fetch Error:', error);
+      return res.status(500).json({ error: 'Failed to fetch student records.' });
     }
+  }
 
-    // 2. Add New Student & Payment Record
-    if (action === 'register' && req.method === 'POST') {
-      const { 
-        full_name, student_no, reg_no, year_of_study, 
-        semester, email, phone, payment_type, amount, 
-        academic_year, registered_by_role, registered_by_user 
+  // Handle New Student Registration & Receipt Dispatch
+  if (req.method === 'POST') {
+    try {
+      const {
+        student_name,
+        reg_no,
+        student_class,
+        year,
+        payment_type,
+        amount,
+        registered_by,
+        student_email
       } = req.body;
 
-      const connection = await pool.getConnection();
-      try {
-        await connection.beginTransaction();
-
-        // Insert or Get Existing Student
-        let studentId;
-        const [existing] = await connection.query(
-          'SELECT id FROM students WHERE student_no = ? OR reg_no = ?',
-          [student_no, reg_no]
-        );
-
-        if (existing.length > 0) {
-          studentId = existing[0].id;
-          // Update student info if existing
-          await connection.query(
-            'UPDATE students SET full_name=?, year_of_study=?, semester=?, email=?, phone=? WHERE id=?',
-            [full_name, year_of_study, semester, email, phone, studentId]
-          );
-        } else {
-          const [studentResult] = await connection.query(
-            'INSERT INTO students (full_name, student_no, reg_no, year_of_study, semester, email, phone) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [full_name, student_no, reg_no, year_of_study, semester, email, phone]
-          );
-          studentId = studentResult.insertId;
-        }
-
-        // Insert Payment Transaction with Officer Audit Log
-        const [transResult] = await connection.query(
-          'INSERT INTO transactions (student_id, payment_type, amount, academic_year, registered_by_role, registered_by_user) VALUES (?, ?, ?, ?, ?, ?)',
-          [studentId, payment_type, amount, academic_year, registered_by_role, registered_by_user]
-        );
-
-        await connection.commit();
-        connection.release();
-
-        return res.status(200).json({ 
-          success: true, 
-          message: 'Registration successful', 
-          transaction_id: transResult.insertId 
-        });
-      } catch (err) {
-        await connection.rollback();
-        connection.release();
-        throw err;
+      if (!student_name || !reg_no || !amount) {
+        return res.status(400).json({ error: 'Missing required fields.' });
       }
+
+      // Insert record into TiDB MySQL
+      const [result] = await pool.query(
+        `INSERT INTO students (student_name, reg_no, student_class, year, payment_type, amount, registered_by, student_email, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [student_name, reg_no, student_class, year, payment_type, amount, registered_by, student_email || null]
+      );
+
+      // Send Receipt Email if an email address was provided
+      if (student_email && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+        try {
+          await transporter.sendMail({
+            from: `"MUESA Official" <${process.env.EMAIL_USER}>`,
+            to: student_email,
+            subject: 'MUESA Payment & Registration Receipt',
+            html: `
+              <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; border: 1px solid #e0e0e0; border-radius: 8px;">
+                <h2 style="color: #0d6efd; margin-top: 0;">MUESA Official Receipt</h2>
+                <p>Mutesa I Royal University Education Students Association</p>
+                <hr style="border: 0; border-top: 1px solid #eee;" />
+                <p>Dear <strong>${student_name}</strong>,</p>
+                <p>Your payment has been successfully recorded on the MUESA Portal.</p>
+                
+                <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Reg / Student No:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${reg_no}</td></tr>
+                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Class / Semester:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${student_class || 'N/A'}</td></tr>
+                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Payment Type:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${payment_type}</td></tr>
+                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Amount Paid:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0; color: #198754; font-weight: bold;">UGX ${Number(amount).toLocaleString()}</td></tr>
+                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Registered By:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${registered_by || 'Administrator'}</td></tr>
+                  <tr><td style="padding: 8px 0;"><strong>Date:</strong></td><td style="padding: 8px 0;">${new Date().toLocaleDateString()}</td></tr>
+                </table>
+
+                <hr style="border: 0; border-top: 1px solid #eee;" />
+                <p style="font-size: 12px; color: #6c757d;">This is an automated receipt generated by the MUESA Portal system.</p>
+              </div>
+            `
+          });
+        } catch (emailError) {
+          console.error('Email dispatch failed:', emailError);
+        }
+      }
+
+      return res.status(200).json({ success: true, insertId: result.insertId });
+    } catch (error) {
+      console.error('Database Insert Error:', error);
+      return res.status(500).json({ error: 'Failed to record payment.' });
     }
-
-    // 3. Fetch Filtered Transactions & Dashboard Analytics
-    if (action === 'get_records' && req.method === 'GET') {
-      const { year, semester, payment_type, start_date, end_date } = req.query;
-
-      let query = `
-        SELECT 
-          t.transaction_id, s.full_name, s.student_no, s.reg_no, 
-          s.year_of_study, s.semester, s.email, t.payment_type, 
-          t.amount, t.academic_year, t.registered_by_role, 
-          t.registered_by_user, t.created_at
-        FROM transactions t
-        JOIN students s ON t.student_id = s.id
-        WHERE 1=1
-      `;
-      const queryParams = [];
-
-      if (year) { query += ' AND s.year_of_study = ?'; queryParams.push(year); }
-      if (semester) { query += ' AND s.semester = ?'; queryParams.push(semester); }
-      if (payment_type) { query += ' AND t.payment_type = ?'; queryParams.push(payment_type); }
-      if (start_date) { query += ' AND DATE(t.created_at) >= ?'; queryParams.push(start_date); }
-      if (end_date) { query += ' AND DATE(t.created_at) <= ?'; queryParams.push(end_date); }
-
-      query += ' ORDER BY t.created_at DESC';
-
-      const [records] = await pool.query(query, queryParams);
-      return res.status(200).json({ success: true, records });
-    }
-
-    return res.status(404).json({ success: false, message: 'Invalid Endpoint' });
-
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ success: false, error: error.message });
   }
+
+  return res.status(45)
 };
