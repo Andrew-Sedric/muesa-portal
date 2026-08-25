@@ -1,0 +1,13 @@
+{
+  "name": "muesa-portal",
+  "version": "1.0.0",
+  "description": "MUTESA I Royal University Education Students Association Portal",
+  "main": "api/index.js",
+  "scripts": {
+    "start": "node api/index.js"
+  },
+  "dependencies": {
+    "mysql2": "^3.9.0",
+    "resend": "^3.2.0"
+  }
+}
