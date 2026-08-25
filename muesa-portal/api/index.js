@@ -1,7 +1,7 @@
 const mysql = require('mysql2/promise');
 const nodemailer = require('nodemailer');
 
-// Setup TiDB MySQL Database Connection Pool
+// TiDB Connection Pool
 const pool = mysql.createPool({
   host: process.env.TIDB_HOST,
   user: process.env.TIDB_USER,
@@ -14,7 +14,7 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
-// Create Nodemailer Transporter for Gmail
+// Nodemailer Transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -24,7 +24,6 @@ const transporter = nodemailer.createTransport({
 });
 
 module.exports = async (req, res) => {
-  // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -33,66 +32,80 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // Handle Fetching Records
+  // GET: Fetch all student records
   if (req.method === 'GET') {
     try {
       const [rows] = await pool.query('SELECT * FROM students ORDER BY id DESC');
       return res.status(200).json(rows);
     } catch (error) {
-      console.error('Database Fetch Error:', error);
-      return res.status(500).json({ error: 'Failed to fetch student records.' });
+      console.error('Fetch error:', error);
+      return res.status(500).json({ error: 'Failed to fetch records.' });
     }
   }
 
-  // Handle POST Requests (Login or Student Registration)
+  // POST: Login & Student Registration
   if (req.method === 'POST') {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
-      const {
-        action,
-        username,
-        password,
-        student_name,
-        reg_no,
-        student_class,
-        year,
-        payment_type,
-        amount,
-        registered_by,
-        student_email
-      } = body;
+      const { action, username, password } = body;
 
-      // Check for Login Request
+      // Handle Login Verification
       if (action === 'login' || (username !== undefined && password !== undefined)) {
-        if (username === 'financial_muesa' && password === 'muesa2026') {
-          return res.status(200).json({ success: true, message: 'Login successful' });
+        // Authenticate against your database or default credentials
+        if (
+          (username === 'president_muesa' && password === 'muesa2026') ||
+          (username === 'financial_muesa' && password === 'muesa2026')
+        ) {
+          return res.status(200).json({ success: true, user: username });
         } else {
           return res.status(401).json({ error: 'Invalid username or password.' });
         }
       }
 
       // Handle New Student Registration
+      const {
+        student_name,
+        reg_no,
+        student_class,
+        year,
+        email,
+        phone,
+        payment_type,
+        amount,
+        registered_by
+      } = body;
+
       if (!student_name || !reg_no || !amount) {
-        return res.status(400).json({ error: 'Missing required student fields.' });
+        return res.status(400).json({ error: 'Missing required fields.' });
       }
 
-      // Insert record into TiDB MySQL
+      // Insert record into TiDB
       const [result] = await pool.query(
-        `INSERT INTO students (student_name, reg_no, student_class, year, payment_type, amount, registered_by, student_email, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-        [student_name, reg_no, student_class, year, payment_type, amount, registered_by || 'Administrator', student_email || null]
+        `INSERT INTO students (student_name, reg_no, student_class, year, email, phone, payment_type, amount, registered_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [
+          student_name,
+          reg_no,
+          student_class || '',
+          year || '',
+          email || null,
+          phone || null,
+          payment_type || 'Subscription',
+          amount,
+          registered_by || 'Admin'
+        ]
       );
 
-      // Send Receipt Email if recipient address and credentials are present
-      if (student_email && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      // Dispatch Email Receipt if Email is provided
+      if (email && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
         try {
           await transporter.sendMail({
             from: `"MUESA Official" <${process.env.EMAIL_USER}>`,
-            to: student_email,
-            subject: 'MUESA Payment & Registration Receipt',
+            to: email,
+            subject: 'MUESA Official Payment Receipt',
             html: `
               <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; border: 1px solid #e0e0e0; border-radius: 8px;">
-                <h2 style="color: #0d6efd; margin-top: 0;">MUESA Official Receipt</h2>
+                <h2 style="color: #006633; margin-top: 0;">MUESA Official Receipt</h2>
                 <p>Mutesa I Royal University Education Students Association</p>
                 <hr style="border: 0; border-top: 1px solid #eee;" />
                 <p>Dear <strong>${student_name}</strong>,</p>
@@ -100,27 +113,27 @@ module.exports = async (req, res) => {
                 
                 <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
                   <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Reg / Student No:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${reg_no}</td></tr>
-                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Class / Semester:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${student_class || 'N/A'}</td></tr>
+                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Class / Year:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${student_class} ${year}</td></tr>
                   <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Payment Type:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${payment_type}</td></tr>
-                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Amount Paid:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0; color: #198754; font-weight: bold;">UGX ${Number(amount).toLocaleString()}</td></tr>
-                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Registered By:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${registered_by || 'Administrator'}</td></tr>
+                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Amount Paid:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0; color: #006633; font-weight: bold;">UGX ${Number(amount).toLocaleString()}</td></tr>
+                  <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Registered By:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${registered_by}</td></tr>
                   <tr><td style="padding: 8px 0;"><strong>Date:</strong></td><td style="padding: 8px 0;">${new Date().toLocaleDateString()}</td></tr>
                 </table>
 
                 <hr style="border: 0; border-top: 1px solid #eee;" />
-                <p style="font-size: 12px; color: #6c757d;">This is an automated receipt generated by the MUESA Portal system.</p>
+                <p style="font-size: 12px; color: #6c757d;">This is an automated receipt generated by the MUESA Portal.</p>
               </div>
             `
           });
-        } catch (emailError) {
-          console.error('Email dispatch failed:', emailError);
+        } catch (emailErr) {
+          console.error('Email Dispatch Error:', emailErr);
         }
       }
 
       return res.status(200).json({ success: true, insertId: result.insertId });
     } catch (error) {
-      console.error('Database Request Error:', error);
-      return res.status(500).json({ error: 'An unexpected error occurred.' });
+      console.error('API Error:', error);
+      return res.status(500).json({ error: 'Server error recording student.' });
     }
   }
 
