@@ -5,64 +5,105 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MUESA Portal</title>
   <style>
+    :root {
+      --muesa-blue: #0756a4;
+      --muesa-blue-dark: #06366d;
+      --muesa-yellow: #f5cf00;
+      --muesa-red: #c9282d;
+      --ink: #172033;
+      --muted: #607087;
+      --surface: rgba(255, 255, 255, 0.96);
+      --line: #dfe6ef;
+      --shadow: 0 18px 45px rgba(10, 38, 73, 0.12);
+    }
+
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    body { background-color: #f4f6f8; margin: 0; padding: 20px; color: #333; }
-    .container { max-width: 1050px; margin: 0 auto; }
-    
+    body {
+      background: #e8eef5 url('muesa%20bg.png') center / 520px auto fixed no-repeat;
+      margin: 0; padding: 32px 20px; color: var(--ink); min-height: 100vh;
+      position: relative;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: -1;
+      background: linear-gradient(135deg, rgba(242, 247, 252, 0.95), rgba(216, 229, 243, 0.88));
+    }
+    .container { max-width: 1120px; margin: 0 auto; }
+
     /* Login Modal */
     #loginOverlay {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000;
+      background: linear-gradient(135deg, rgba(6, 54, 109, 0.88), rgba(7, 86, 164, 0.78));
+      display: flex; align-items: center; justify-content: center; z-index: 1000;
+      padding: 20px;
     }
     .login-card {
-      background: white; padding: 30px; border-radius: 8px; width: 100%; max-width: 400px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      background: var(--surface) url('muesa%20bg.png') center 28px / 112px auto no-repeat;
+      padding: 175px 34px 34px; border-radius: 18px; width: 100%; max-width: 420px;
+      box-shadow: 0 24px 80px rgba(2, 20, 46, 0.3); border-top: 6px solid var(--muesa-yellow);
     }
-    .login-card h2 { margin-top: 0; color: #004d26; text-align: center; }
+    .login-card h2 { margin: 0 0 24px; color: var(--muesa-blue-dark); text-align: center; font-size: 24px; }
 
     /* Header & Cards */
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 25px; }
-    .card h3 { margin-top: 0; color: #004d26; border-bottom: 2px solid #eef2f5; padding-bottom: 10px; }
-    
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 26px; padding: 20px 24px; background: rgba(255,255,255,0.92); border-left: 7px solid var(--muesa-blue); border-radius: 12px; box-shadow: var(--shadow); }
+    .header h2 { margin: 0; color: var(--muesa-blue-dark); font-size: 25px; letter-spacing: 0; }
+    #userBadge { color: var(--muesa-blue-dark); }
+    .card { background: var(--surface); padding: 30px; border-radius: 14px; box-shadow: var(--shadow); margin-bottom: 26px; border: 1px solid rgba(255,255,255,0.8); }
+    .card h3 { margin-top: 0; color: var(--muesa-blue-dark); border-bottom: 2px solid var(--line); padding-bottom: 13px; }
+
     /* Form Grid */
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 19px 22px; }
     .form-group { display: flex; flex-direction: column; }
     .form-group.full-width { grid-column: span 2; }
-    label { font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #555; }
-    input, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; width: 100%; }
-    
+    label { font-size: 12px; font-weight: 700; margin-bottom: 7px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    input, select { padding: 12px 13px; border: 1px solid #cbd6e3; border-radius: 7px; font-size: 14px; width: 100%; background: #fbfdff; color: var(--ink); transition: border-color 0.2s, box-shadow 0.2s; }
+    input:focus, select:focus { outline: none; border-color: var(--muesa-blue); box-shadow: 0 0 0 3px rgba(7, 86, 164, 0.14); }
+
     /* Buttons */
     .btn-submit {
-      background-color: #004d26; color: white; border: none; padding: 12px;
-      font-size: 16px; font-weight: bold; border-radius: 4px; cursor: pointer; margin-top: 15px; width: 100%;
+      background: var(--muesa-blue); color: white; border: none; padding: 13px 16px;
+      font-size: 15px; font-weight: bold; border-radius: 7px; cursor: pointer; margin-top: 20px; width: 100%; transition: background 0.2s, transform 0.2s;
     }
-    .btn-submit:hover { background-color: #003319; }
-    .btn-logout { background: #fff; border: 1px solid #ccc; padding: 6px 15px; border-radius: 4px; cursor: pointer; }
-    
+    .btn-submit:hover { background: var(--muesa-blue-dark); transform: translateY(-1px); }
+    .btn-logout { background: #fff; color: var(--muesa-blue-dark); border: 1px solid #c6d2df; padding: 9px 16px; border-radius: 7px; cursor: pointer; font-weight: 700; }
+
     .btn-action {
-      background-color: #0275d8; color: white; border: none; padding: 8px 15px;
-      border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px;
+      background-color: var(--muesa-blue); color: white; border: none; padding: 10px 15px;
+      border-radius: 7px; cursor: pointer; font-weight: bold; font-size: 13px;
     }
-    .btn-action:hover { background-color: #025aa5; }
+    .btn-action:hover { background-color: var(--muesa-blue-dark); }
 
     .btn-delete {
-      background-color: #d9534f; color: white; border: none; padding: 4px 8px;
-      border-radius: 3px; cursor: pointer; font-size: 12px;
+      background-color: var(--muesa-red); color: white; border: none; padding: 6px 9px;
+      border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 700;
     }
-    .btn-delete:hover { background-color: #c9302c; }
+    .btn-delete:hover { background-color: #991f24; }
 
     /* Calculator */
     .calc-box {
-      background: #eef7ed; border: 1px solid #c8e6c9; padding: 15px; border-radius: 6px;
+      background: #fff9d9; border: 1px solid #ead36a; padding: 17px 19px; border-radius: 9px;
       display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;
     }
-    .calc-box h4 { margin: 0; font-size: 14px; color: #1b5e20; }
-    .calc-box span { font-size: 18px; font-weight: bold; color: #2e7d32; }
+    .calc-box h4 { margin: 0; font-size: 14px; color: #695800; }
+    .calc-box span { font-size: 18px; font-weight: bold; color: var(--muesa-blue-dark); }
 
-    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    th, td { border: 1px solid #eee; padding: 10px; text-align: left; font-size: 13px; }
-    th { background-color: #f8f9fa; font-weight: 600; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 15px; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 12px 10px; text-align: left; font-size: 13px; }
+    th { background-color: var(--muesa-blue-dark); color: white; font-weight: 700; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:nth-child(even) { background: #f7faff; }
+    tbody tr:hover { background: #fffbe8; }
+
+    @media (max-width: 700px) {
+      body { padding: 16px 12px; background-size: 380px auto; }
+      .header { align-items: flex-start; flex-direction: column; gap: 15px; padding: 18px; }
+      .header h2 { font-size: 21px; }
+      .card { padding: 20px 16px; }
+      .form-grid { grid-template-columns: 1fr; gap: 16px; }
+      .form-group.full-width { grid-column: span 1; }
+      .calc-box { align-items: flex-start; flex-direction: column; gap: 8px; }
+      #printableTableArea { overflow-x: auto; }
+      table { min-width: 820px; }
+    }
 
     /* Print Formatting */
     @media print {
