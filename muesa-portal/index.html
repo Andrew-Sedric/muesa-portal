@@ -256,6 +256,8 @@
               <th>Reg No</th>
               <th>Sem</th>
               <th>Year</th>
+              <th>Email</th>
+              <th>Phone</th>
               <th>Type</th>
               <th>Amount (UGX)</th>
               <th>Registered By</th>
@@ -407,6 +409,8 @@
             <td>${r.reg_no || '-'}</td>
             <td>${r.student_class || '-'}</td>
             <td>${r.year || '-'}</td>
+            <td>${r.email || '-'}</td>
+            <td>${r.phone || '-'}</td>
             <td>${r.payment_type || '-'}</td>
             <td>UGX ${Number(r.amount || 0).toLocaleString()}</td>
             <td>${r.registered_by || 'Admin'}</td>
