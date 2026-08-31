@@ -25,7 +25,8 @@ module.exports = async (req, res) => {
   // GET: Fetch records
   if (req.method === 'GET') {
     try {
-      const [rows] = await pool.query('SELECT * FROM students ORDER BY id DESC');
+      // Selects all columns including created_at timestamp
+      const [rows] = await pool.query('SELECT *, DATE(created_at) as reg_date FROM students ORDER BY id DESC');
       return res.status(200).json(rows);
     } catch (error) {
       console.error('Fetch error:', error);
