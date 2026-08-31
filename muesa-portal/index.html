@@ -4,72 +4,140 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MUESA Portal</title>
+  
+  <!-- FAVICON (Tab Logo) -->
+  <link rel="icon" type="image/png" href="muesa bg.png">
+
   <style>
+    :root {
+      --primary-blue: #003366;
+      --royal-blue: #0056b3;
+      --accent-orange: #ff5722;
+      --dark-orange: #e65100;
+      --light-bg: #f4f7fa;
+      --card-bg: #ffffff;
+      --text-color: #2c3e50;
+      --border-color: #e2e8f0;
+    }
+
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    body { background-color: #f4f6f8; margin: 0; padding: 20px; color: #333; }
-    .container { max-width: 1150px; margin: 0 auto; }
+    body { background-color: var(--light-bg); margin: 0; padding: 20px; color: var(--text-color); }
+    .container { max-width: 1200px; margin: 0 auto; }
     
-    /* Login Modal */
+    /* LOGIN MODAL OVERLAY */
     #loginOverlay {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000;
+      background: rgba(0, 32, 64, 0.75); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center; z-index: 1000;
     }
     .login-card {
-      background: white; padding: 30px; border-radius: 8px; width: 100%; max-width: 400px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      background: var(--card-bg); padding: 35px; border-radius: 12px; width: 100%; max-width: 420px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25); border-top: 6px solid var(--accent-orange);
+      text-align: center;
     }
-    .login-card h2 { margin-top: 0; color: #004d26; text-align: center; }
+    .login-logo { width: 100px; height: auto; margin-bottom: 10px; }
+    .login-card h2 { margin: 10px 0 20px 0; color: var(--primary-blue); font-size: 24px; }
 
-    /* Header & Cards */
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 25px; }
-    .card h3 { margin-top: 0; color: #004d26; border-bottom: 2px solid #eef2f5; padding-bottom: 10px; }
+    /* HEADER */
+    .header { 
+      display: flex; justify-content: space-between; align-items: center; 
+      margin-bottom: 25px; background: var(--card-bg); padding: 15px 25px; 
+      border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      border-left: 6px solid var(--royal-blue);
+    }
+    .header-brand { display: flex; align-items: center; gap: 15px; }
+    .header-logo { width: 45px; height: auto; }
+    .header h2 { margin: 0; color: var(--primary-blue); font-size: 22px; }
+
+    /* CARD CONTAINER */
+    .card { 
+      background: var(--card-bg); padding: 25px; border-radius: 12px; 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid var(--border-color);
+    }
+    .card h3 { 
+      margin-top: 0; color: var(--primary-blue); border-bottom: 2px solid var(--border-color); 
+      padding-bottom: 12px; font-size: 18px; display: flex; align-items: center; gap: 8px;
+    }
     
-    /* Form Grid */
-    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+    /* FORM GRID */
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px; }
     .form-group { display: flex; flex-direction: column; }
     .form-group.full-width { grid-column: 1 / -1; }
-    label { font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #555; }
-    input, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; width: 100%; }
+    label { font-size: 13px; font-weight: 700; margin-bottom: 6px; color: var(--primary-blue); }
     
-    /* Buttons */
-    .btn-submit {
-      background-color: #004d26; color: white; border: none; padding: 12px;
-      font-size: 16px; font-weight: bold; border-radius: 4px; cursor: pointer; margin-top: 15px; width: 100%;
+    input, select { 
+      padding: 11px 14px; border: 1px solid var(--border-color); border-radius: 6px; 
+      font-size: 14px; width: 100%; outline: none; transition: border 0.2s, box-shadow 0.2s;
     }
-    .btn-submit:hover { background-color: #003319; }
-    .btn-logout { background: #fff; border: 1px solid #ccc; padding: 6px 15px; border-radius: 4px; cursor: pointer; }
+    input:focus, select:focus { 
+      border-color: var(--royal-blue); box-shadow: 0 0 0 3px rgba(0, 86, 179, 0.15); 
+    }
+    
+    /* BUTTONS */
+    .btn-submit {
+      background-color: var(--accent-orange); color: white; border: none; padding: 14px;
+      font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 20px; 
+      width: 100%; display: flex; justify-content: center; align-items: center; gap: 10px;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn-submit:hover { background-color: var(--dark-orange); }
+    .btn-submit:disabled { background-color: #cccccc; cursor: not-allowed; }
+
+    .btn-logout { 
+      background: transparent; border: 1px solid var(--accent-orange); color: var(--accent-orange);
+      padding: 8px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s;
+    }
+    .btn-logout:hover { background: var(--accent-orange); color: white; }
     
     .btn-action {
-      background-color: #0275d8; color: white; border: none; padding: 8px 15px;
-      border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px;
+      background-color: var(--royal-blue); color: white; border: none; padding: 10px 18px;
+      border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s;
     }
-    .btn-action:hover { background-color: #025aa5; }
+    .btn-action:hover { background-color: var(--primary-blue); }
 
     .btn-clear {
-      background-color: #6c757d; color: white; border: none; padding: 8px 12px;
-      border-radius: 4px; cursor: pointer; font-size: 13px; margin-top: auto;
+      background-color: #6c757d; color: white; border: none; padding: 10px 14px;
+      border-radius: 6px; cursor: pointer; font-size: 13px; margin-top: auto; transition: 0.2s;
     }
+    .btn-clear:hover { background-color: #495057; }
 
     .btn-delete {
-      background-color: #d9534f; color: white; border: none; padding: 4px 8px;
-      border-radius: 3px; cursor: pointer; font-size: 12px;
+      background-color: #dc3545; color: white; border: none; padding: 6px 10px;
+      border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;
     }
-    .btn-delete:hover { background-color: #c9302c; }
+    .btn-delete:hover { background-color: #bd2130; }
 
-    /* Calculator */
+    /* ROTATING SPINNER */
+    .spinner {
+      width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.3);
+      border-radius: 50%; border-top-color: #ffffff;
+      animation: spin 0.8s linear infinite; display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* CALCULATOR BOX WITH ORANGE ACCENT */
     .calc-box {
-      background: #eef7ed; border: 1px solid #c8e6c9; padding: 15px; border-radius: 6px;
-      display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;
+      background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+      border: 1px solid #ffcc80; padding: 18px 22px; border-radius: 8px;
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
     }
-    .calc-box h4 { margin: 0; font-size: 14px; color: #1b5e20; }
-    .calc-box span { font-size: 18px; font-weight: bold; color: #2e7d32; }
+    .calc-box h4 { margin: 0; font-size: 15px; color: var(--dark-orange); }
+    .calc-box span { font-size: 20px; font-weight: 800; color: var(--dark-orange); }
 
-    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    th, td { border: 1px solid #eee; padding: 10px; text-align: left; font-size: 13px; }
-    th { background-color: #f8f9fa; font-weight: 600; }
+    /* TABLES */
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
+    th, td { border: 1px solid var(--border-color); padding: 12px 10px; text-align: left; font-size: 13px; }
+    th { background-color: #f1f5f9; font-weight: 700; color: var(--primary-blue); }
+    tbody tr:nth-child(even) { background-color: #f8fafc; }
+    tbody tr:hover { background-color: #f1f5f9; }
 
-    /* Print Formatting */
+    /* USER BADGE */
+    #userBadge {
+      background: #e3f2fd; color: var(--royal-blue); padding: 6px 14px;
+      border-radius: 20px; font-size: 13px; font-weight: 700; display: inline-block;
+    }
+
+    /* PRINT FORMATTING */
     @media print {
       body * { visibility: hidden; }
       #printableTableArea, #printableTableArea * { visibility: visible; }
@@ -83,17 +151,20 @@
   <!-- LOGIN MODAL -->
   <div id="loginOverlay">
     <div class="login-card">
+      <img src="muesa bg.png" alt="MUESA Logo" class="login-logo">
       <h2>MUESA Portal Login</h2>
       <form id="loginForm">
-        <div class="form-group" style="margin-bottom: 15px;">
+        <div class="form-group" style="margin-bottom: 15px; text-align: left;">
           <label>Username</label>
-          <input type="text" id="login_user" required>
+          <input type="text" id="login_user" required placeholder="Enter username">
         </div>
-        <div class="form-group" style="margin-bottom: 15px;">
+        <div class="form-group" style="margin-bottom: 20px; text-align: left;">
           <label>Password</label>
-          <input type="password" id="login_pass" required>
+          <input type="password" id="login_pass" required placeholder="Enter password">
         </div>
-        <button type="submit" class="btn-submit">Sign In</button>
+        <button type="submit" class="btn-submit">
+          <span id="loginBtnText">Sign In</span>
+        </button>
       </form>
     </div>
   </div>
@@ -102,9 +173,12 @@
   <div class="container" id="appContent" style="display: none;">
     
     <div class="header">
-      <h2>MUESA Student Payment Records</h2>
+      <div class="header-brand">
+        <img src="muesa bg.png" alt="MUESA Crest" class="header-logo">
+        <h2>MUESA Student Payment Records</h2>
+      </div>
       <div>
-        <span id="userBadge" style="margin-right: 15px; font-weight: bold;"></span>
+        <span id="userBadge" style="margin-right: 15px;"></span>
         <button class="btn-logout" id="logoutBtn">Sign Out</button>
       </div>
     </div>
@@ -168,18 +242,22 @@
 
           <!-- DYNAMIC CUSTOM NOTE FIELD -->
           <div class="form-group full-width" id="customNoteGroup" style="display: none;">
-            <label style="color: #004d26;">Custom Payment Details / Note</label>
+            <label style="color: var(--accent-orange);">Custom Payment Details / Note</label>
             <input type="text" id="custom_payment_note" placeholder="Specify details for 'Others' (e.g. T-Shirt, Trip Fee, Fine)">
           </div>
 
         </div>
-        <button type="submit" class="btn-submit">Submit Registration & Record Payment</button>
+        
+        <button type="submit" class="btn-submit" id="submitBtn">
+          <div class="spinner" id="submitSpinner"></div>
+          <span id="submitBtnText">Submit Registration & Record Payment</span>
+        </button>
       </form>
     </div>
 
     <!-- ADMIN-ONLY: RECORDS & FINANCIAL REPORTS -->
     <div class="card" id="reportsSection" style="display: none;">
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eef2f5; padding-bottom: 10px; margin-bottom: 15px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); padding-bottom: 12px; margin-bottom: 18px;">
         <h3 style="margin: 0; border: none; padding: 0;">Records & Financial Reports</h3>
         <button class="btn-action" onclick="printSelectedRecords()">🖨️ Print Selected / Visible Records</button>
       </div>
@@ -191,9 +269,9 @@
       </div>
 
       <!-- SEARCH & FILTERS ROW -->
-      <div class="form-grid" style="margin-bottom: 15px; grid-template-columns: 2fr 1fr 1fr 1fr auto;">
+      <div class="form-grid" style="margin-bottom: 18px; grid-template-columns: 2fr 1fr 1fr 1fr auto;">
         <div class="form-group">
-          <label>🔍 Search Name or Student Reg No</label>
+          <label>🔍 Search Name or Reg No</label>
           <input type="text" id="searchInput" placeholder="Type name or reg number..." onkeyup="filterRecords()">
         </div>
         <div class="form-group">
@@ -310,9 +388,18 @@
       location.reload();
     });
 
-    // SUBMIT RECORD
+    // SUBMIT RECORD WITH ANIMATED SPINNER
     document.getElementById('studentForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+
+      const submitBtn = document.getElementById('submitBtn');
+      const spinner = document.getElementById('submitSpinner');
+      const btnText = document.getElementById('submitBtnText');
+
+      // Trigger Spinner Animation & Disable Button
+      submitBtn.disabled = true;
+      spinner.style.display = 'inline-block';
+      btnText.innerText = 'Recording Data...';
 
       const payload = {
         student_name: document.getElementById('student_name').value,
@@ -334,6 +421,7 @@
           body: JSON.stringify(payload)
         });
         const data = await res.json();
+        
         if (res.ok && data.success) {
           if (data.emailSent) {
             alert('Record saved & official email receipt sent successfully!');
@@ -350,6 +438,11 @@
         }
       } catch (err) {
         alert('Connection error.');
+      } finally {
+        // Reset Spinner State
+        submitBtn.disabled = false;
+        spinner.style.display = 'none';
+        btnText.innerText = 'Submit Registration & Record Payment';
       }
     });
 
