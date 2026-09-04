@@ -95,6 +95,15 @@
     }
     .btn-action:hover { background-color: var(--primary-blue); }
 
+    .print-fields {
+      display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center;
+      margin-bottom: 16px; padding: 12px 14px; background: #f8fafc;
+      border: 1px solid var(--border-color); border-radius: 6px;
+    }
+    .print-fields strong { color: var(--primary-blue); font-size: 13px; }
+    .print-field-option { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; }
+    .print-field-option input { width: auto; }
+
     .btn-clear {
       background-color: #6c757d; color: white; border: none; padding: 10px 14px;
       border-radius: 6px; cursor: pointer; font-size: 13px; margin-top: auto; transition: 0.2s;
@@ -262,6 +271,20 @@
         <button class="btn-action" onclick="printSelectedRecords()">🖨️ Print Selected / Visible Records</button>
       </div>
 
+      <div class="print-fields" aria-label="Fields to print">
+        <strong>Fields to print:</strong>
+        <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="name" checked> Name</label>
+        <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="regNo" checked> Reg No</label>
+        <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="email" checked> Email</label>
+        <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="phone" checked> Contact</label>
+        <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="studentClass" checked> Sem</label>
+        <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="year" checked> Year</label>
+        <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="type" checked> Type</label>
+        <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="amount" checked> Amount</label>
+        <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="regDate" checked> Reg Date</label>
+        <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="registeredBy" checked> By</label>
+      </div>
+
       <!-- CALCULATOR BOX -->
       <div class="calc-box">
         <h4>Custom Sum Calculator (Selected Items: <span id="selectedCount">0</span>)</h4>
@@ -306,16 +329,16 @@
           <thead>
             <tr>
               <th class="no-print" style="width: 30px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th>
-              <th>Name</th>
-              <th>Reg No</th>
-              <th>Email</th>
-              <th>Phone</th>
-              <th>Sem</th>
-              <th>Year</th>
-              <th>Type</th>
-              <th>Amount (UGX)</th>
-              <th>Reg Date</th>
-              <th>By</th>
+              <th data-print-field="name">Name</th>
+              <th data-print-field="regNo">Reg No</th>
+              <th data-print-field="email">Email</th>
+              <th data-print-field="phone">Phone</th>
+              <th data-print-field="studentClass">Sem</th>
+              <th data-print-field="year">Year</th>
+              <th data-print-field="type">Type</th>
+              <th data-print-field="amount">Amount (UGX)</th>
+              <th data-print-field="regDate">Reg Date</th>
+              <th data-print-field="registeredBy">By</th>
               <th class="no-print" style="width: 60px;">Action</th>
             </tr>
           </thead>
@@ -498,16 +521,16 @@
         const row = `
           <tr>
             <td class="no-print"><input type="checkbox" class="record-checkbox" data-amount="${r.amount || 0}" onchange="calculateSelectedSum()"></td>
-            <td>${r.student_name || r.full_name || '-'}</td>
-            <td>${r.reg_no || '-'}</td>
-            <td>${r.email || '-'}</td>
-            <td>${r.phone || '-'}</td>
-            <td>${r.student_class || '-'}</td>
-            <td>${r.year || '-'}</td>
-            <td>${r.payment_type || '-'}</td>
-            <td>UGX ${Number(r.amount || 0).toLocaleString()}</td>
-            <td>${displayDate}</td>
-            <td>${r.registered_by || 'Admin'}</td>
+            <td data-print-field="name">${r.student_name || r.full_name || '-'}</td>
+            <td data-print-field="regNo">${r.reg_no || '-'}</td>
+            <td data-print-field="email">${r.email || '-'}</td>
+            <td data-print-field="phone">${r.phone || '-'}</td>
+            <td data-print-field="studentClass">${r.student_class || '-'}</td>
+            <td data-print-field="year">${r.year || '-'}</td>
+            <td data-print-field="type">${r.payment_type || '-'}</td>
+            <td data-print-field="amount">UGX ${Number(r.amount || 0).toLocaleString()}</td>
+            <td data-print-field="regDate">${displayDate}</td>
+            <td data-print-field="registeredBy">${r.registered_by || 'Admin'}</td>
             <td class="no-print"><button class="btn-delete" onclick="deleteRecord(${r.id})">Delete</button></td>
           </tr>
         `;
@@ -566,12 +589,22 @@
     function printSelectedRecords() {
       const checkboxes = document.querySelectorAll('.record-checkbox');
       const hasSelection = Array.from(checkboxes).some(cb => cb.checked);
+      const selectedFields = Array.from(document.querySelectorAll('.print-field-checkbox:checked'))
+        .map(field => field.dataset.field);
+      const temporarilyHiddenRows = [];
+      const temporarilyHiddenFields = [];
+
+      if (selectedFields.length === 0) {
+        alert('Select at least one field to print.');
+        return;
+      }
 
       if (hasSelection) {
         checkboxes.forEach(cb => {
           const tr = cb.closest('tr');
           if (!cb.checked) {
             tr.classList.add('no-print');
+            temporarilyHiddenRows.push(tr);
           } else {
             tr.classList.remove('no-print');
           }
@@ -582,6 +615,17 @@
         });
       }
 
+      document.querySelectorAll('[data-print-field]').forEach(cell => {
+        if (!selectedFields.includes(cell.dataset.printField)) {
+          cell.classList.add('no-print');
+          temporarilyHiddenFields.push(cell);
+        }
+      });
+
+      window.addEventListener('afterprint', () => {
+        temporarilyHiddenRows.forEach(row => row.classList.remove('no-print'));
+        temporarilyHiddenFields.forEach(field => field.classList.remove('no-print'));
+      }, { once: true });
       window.print();
     }
   </script>
