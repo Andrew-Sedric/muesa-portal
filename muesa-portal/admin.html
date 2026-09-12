@@ -39,7 +39,7 @@
     th { color: var(--navy); background: #f3f7f6; font-size: 11px; letter-spacing: .6px; text-transform: uppercase; }
     tr.is-selected { background: #f0faf7; }
     .student { font-weight: 800; color: var(--navy); }
-    .thumb { width: 46px; height: 55px; border-radius: 4px; object-fit: cover; background: #e8eeee; border: 1px solid var(--line); display: block; }
+    .student-photo { width: 46px; height: 55px; max-width: 46px; max-height: 55px; border-radius: 4px; object-fit: cover; background: #e8eeee; border: 1px solid var(--line); display: block; }
     .thumb.empty { display: grid; place-items: center; color: var(--muted); font-size: 11px; }
     select { width: 100%; min-width: 230px; border: 1px solid var(--line); border-radius: 4px; padding: 9px; color: var(--ink); background: white; }
     .match { display: flex; align-items: center; gap: 9px; min-width: 310px; }
@@ -62,7 +62,7 @@
       .panel-head { padding: 12px 0; }
       table { min-width: 0; table-layout: fixed; }
       th, td { font-size: 10px; padding: 6px; }
-      .thumb { width: 48px; height: 58px; }
+      .student-photo { width: 36px; height: 46px; max-width: 36px; max-height: 46px; }
       .print-photo { display: block; }
     }
   </style>
@@ -110,7 +110,27 @@
     const fileStem = name => name.replace(/\.[^.]+$/, '');
     const escapeHtml = value => String(value || '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
 
-    async function readImage(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); }); }
+    async function readImage(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const image = new Image();
+          image.onload = () => {
+            const maxWidth = 480, maxHeight = 640;
+            const scale = Math.min(1, maxWidth / image.naturalWidth, maxHeight / image.naturalHeight);
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+            canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+            canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.72));
+          };
+          image.onerror = () => reject(new Error(`Unable to read ${file.name}`));
+          image.src = reader.result;
+        };
+        reader.onerror = () => reject(new Error(`Unable to read ${file.name}`));
+        reader.readAsDataURL(file);
+      });
+    }
     function findStudent(fileName) { const stem = normalize(fileStem(fileName)); return state.students.find(student => normalize(student.student_name || student.full_name) === stem) || null; }
     function photoFor(student) { return state.photos.get(String(student.id)) || state.photos.get(student.reg_no); }
     function pendingForStudent(studentId) { return state.files.find(file => state.mappings.get(file.key) === String(studentId)); }
@@ -123,7 +143,7 @@
       visible.forEach(student => {
         const id = String(student.id), pending = pendingForStudent(id), existing = photoFor(student), checked = state.selected.has(id);
         const fileOptions = ['<option value="">No pending file</option>'].concat(state.files.map(file => `<option value="${escapeHtml(file.key)}" ${state.mappings.get(file.key) === id ? 'selected' : ''}>${escapeHtml(file.name)}</option>`)).join('');
-        const image = pending ? `<img src="${pending.url}" alt="Pending ${escapeHtml(student.student_name)}">` : existing ? `<img src="${existing.photo_data}" alt="Existing ${escapeHtml(student.student_name)}">` : '<span class="muted">None</span>';
+        const image = pending ? `<img class="student-photo" src="${pending.url}" alt="Pending ${escapeHtml(student.student_name)}">` : existing ? `<img class="student-photo" src="${existing.photo_data}" alt="Existing ${escapeHtml(student.student_name)}">` : '<span class="muted">None</span>';
         rows.insertAdjacentHTML('beforeend', `<tr class="${checked ? 'is-selected' : ''}"><td class="no-print"><input class="row-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''}></td><td>${image}</td><td class="student">${escapeHtml(student.student_name || student.full_name || '-')}</td><td>${escapeHtml(student.reg_no || '-')}</td><td>${existing ? '<span class="muted">Confirmed</span>' : '<span class="muted">Not assigned</span>'}</td><td><div class="match ${pending ? '' : 'unmatched'}">${pending ? `<img src="${pending.url}" alt="">` : '<span>—</span>'}<div><select class="mapping" data-student="${escapeHtml(id)}">${fileOptions}</select><small>${pending ? escapeHtml(pending.name) : 'Filename match not found; choose manually.'}</small></div></div></td><td class="no-print"><input class="export-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''} aria-label="Include ${escapeHtml(student.student_name)} in PDF"></td></tr>`);
       });
       const totalPages = Math.max(1, Math.ceil(state.students.length / state.pageSize));
@@ -162,9 +182,22 @@
 
     $('confirmBtn').addEventListener('click', async () => {
       const photos = Array.from(state.mappings.entries()).map(([key, studentId]) => { const file = state.files.find(item => item.key === key); const student = state.students.find(item => String(item.id) === studentId); return file && student ? { student_id: student.id, reg_no: student.reg_no, photo_data: file.url, file_name: file.name } : null; }).filter(Boolean);
-      if (!photos.length || !confirm(`Confirm ${photos.length} photo mapping(s)? Existing student text data will not be changed.`)) return;
+      const selectedPhotos = photos.filter(photo => state.selected.has(String(photo.student_id)));
+      if (!selectedPhotos.length || !confirm(`Confirm ${selectedPhotos.length} selected photo mapping(s)? Existing student text data will not be changed.`)) return;
       $('confirmBtn').disabled = true; $('status').textContent = 'Saving confirmed photo mappings...';
-      try { const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'confirm_photo_batch', photos }) }); const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Save failed'); state.files = []; state.mappings.clear(); $('status').textContent = `${data.saved} mapping(s) confirmed safely.`; await load(); } catch (error) { $('status').textContent = `Save failed: ${error.message}`; render(); }
+      try {
+        let saved = 0;
+        for (let index = 0; index < selectedPhotos.length; index += 2) {
+          const chunk = selectedPhotos.slice(index, index + 2);
+          const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'confirm_photo_batch', photos: chunk }) });
+          const responseText = await response.text();
+          let data;
+          try { data = JSON.parse(responseText); } catch (parseError) { throw new Error(`Server rejected the upload (${response.status}). Reduce the number or size of selected photos.`); }
+          if (!response.ok || !data.success) throw new Error(data.error || 'Save failed');
+          saved += data.saved || chunk.length;
+        }
+        state.files = []; state.mappings.clear(); $('status').textContent = `${saved} mapping(s) confirmed safely.`; await load();
+      } catch (error) { $('status').textContent = `Save failed: ${error.message}`; render(); }
     });
 
     $('printBtn').addEventListener('click', () => { document.querySelectorAll('tr').forEach(row => { const checkbox = row.querySelector('.export-check'); row.style.display = checkbox && !checkbox.checked ? 'none' : ''; }); window.addEventListener('afterprint', () => document.querySelectorAll('tr').forEach(row => row.style.display = ''), { once: true }); window.print(); });

@@ -139,6 +139,7 @@
     th { background-color: #f1f5f9; font-weight: 700; color: var(--primary-blue); }
     tbody tr:nth-child(even) { background-color: #f8fafc; }
     tbody tr:hover { background-color: #f1f5f9; }
+    .record-photo { width: 42px; height: 52px; max-width: 42px; max-height: 52px; object-fit: cover; border: 1px solid var(--border-color); border-radius: 4px; display: block; }
 
     /* USER BADGE */
     #userBadge {
@@ -274,6 +275,7 @@
 
       <div class="print-fields" aria-label="Fields to print">
         <strong>Fields to print:</strong>
+        <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="photo" checked> Photo</label>
         <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="name" checked> Name</label>
         <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="regNo" checked> Reg No</label>
         <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="email" checked> Email</label>
@@ -330,6 +332,7 @@
           <thead>
             <tr>
               <th class="no-print" style="width: 30px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th>
+              <th data-print-field="photo">Photo</th>
               <th data-print-field="name">Name</th>
               <th data-print-field="regNo">Reg No</th>
               <th data-print-field="email">Email</th>
@@ -355,6 +358,7 @@
     let currentUser = null;
     let currentRole = null;
     let allRecords = [];
+    let studentPhotos = new Map();
 
     // TOGGLE CUSTOM NOTE INPUT FIELD
     function toggleCustomNoteField() {
@@ -474,8 +478,14 @@
     // FETCH RECORDS
     async function loadRecords() {
       try {
-        const res = await fetch('/api/index');
-        allRecords = await res.json();
+        const [recordsRes, photosRes] = await Promise.all([fetch('/api/index'), fetch('/api/index?action=photos')]);
+        allRecords = await recordsRes.json();
+        const photos = await photosRes.json();
+        studentPhotos = new Map();
+        photos.forEach(photo => {
+          studentPhotos.set(String(photo.student_id), photo);
+          studentPhotos.set(photo.reg_no, photo);
+        });
         filterRecords();
       } catch (err) {
         console.error('Error loading records:', err);
@@ -519,10 +529,15 @@
         let displayDate = '-';
         if (r.reg_date) displayDate = r.reg_date.split('T')[0];
         else if (r.created_at) displayDate = r.created_at.split('T')[0];
+        const photo = studentPhotos.get(String(r.id)) || studentPhotos.get(r.reg_no);
+        const photoCell = photo
+          ? `<img class="record-photo" src="${photo.photo_data}" alt="${r.student_name || r.full_name || 'Student'} photo">`
+          : '<span>-</span>';
 
         const row = `
           <tr>
             <td class="no-print"><input type="checkbox" class="record-checkbox" data-amount="${r.amount || 0}" onchange="calculateSelectedSum()"></td>
+            <td data-print-field="photo">${photoCell}</td>
             <td data-print-field="name">${r.student_name || r.full_name || '-'}</td>
             <td data-print-field="regNo">${r.reg_no || '-'}</td>
             <td data-print-field="email">${r.email || '-'}</td>
