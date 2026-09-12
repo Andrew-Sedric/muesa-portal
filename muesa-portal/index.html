@@ -188,6 +188,7 @@
       </div>
       <div>
         <span id="userBadge" style="margin-right: 15px;"></span>
+        <a class="btn-logout" id="photoAdminLink" href="admin.html" style="display: none; text-decoration: none; margin-right: 8px;">Photo Admin</a>
         <button class="btn-logout" id="logoutBtn">Sign Out</button>
       </div>
     </div>
@@ -394,6 +395,7 @@
 
           if (currentRole === 'admin') {
             document.getElementById('reportsSection').style.display = 'block';
+            document.getElementById('photoAdminLink').style.display = 'inline-block';
             loadRecords();
           } else {
             document.getElementById('reportsSection').style.display = 'none';

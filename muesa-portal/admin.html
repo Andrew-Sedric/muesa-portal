@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MUESA Photo Administration</title>
+  <link rel="icon" type="image/png" href="muesa bg.png">
+  <style>
+    :root { --navy: #123047; --teal: #008c95; --orange: #e87835; --paper: #f4f7f6; --line: #d8e2e1; --ink: #17333b; --muted: #60767a; --white: #fff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: "Trebuchet MS", "Segoe UI", sans-serif; }
+    .shell { max-width: 1440px; margin: 0 auto; padding: 24px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 22px; }
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .brand img { width: 52px; height: 52px; object-fit: contain; }
+    h1, h2, p { margin-top: 0; }
+    h1 { color: var(--navy); font-size: clamp(24px, 3vw, 36px); margin-bottom: 4px; letter-spacing: 0; }
+    h2 { font-size: 19px; margin-bottom: 6px; color: var(--navy); }
+    .eyebrow { color: var(--orange); font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+    .muted { color: var(--muted); font-size: 14px; }
+    .toolbar, .panel { background: var(--white); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(18, 48, 71, .06); }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px; border-radius: 8px; margin-bottom: 18px; }
+    .toolbar .status { flex: 1 1 260px; }
+    .btn, .file-label { border: 0; border-radius: 5px; padding: 11px 15px; font-weight: 800; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn-primary { background: var(--teal); color: white; }
+    .btn-secondary { background: var(--navy); color: white; }
+    .btn-quiet { background: #e9f0ef; color: var(--navy); }
+    .btn-danger { background: #fff0ec; color: #ad3e29; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .file-label { background: var(--orange); color: white; }
+    input[type=file] { display: none; }
+    .panel { border-radius: 8px; overflow: hidden; }
+    .panel-head { display: flex; align-items: start; justify-content: space-between; gap: 16px; padding: 18px 20px; border-bottom: 1px solid var(--line); }
+    .stats { display: flex; flex-wrap: wrap; gap: 9px; font-size: 13px; color: var(--muted); }
+    .stat { background: #edf5f3; border-radius: 999px; padding: 7px 11px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 960px; }
+    th, td { padding: 11px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: middle; font-size: 13px; }
+    th { color: var(--navy); background: #f3f7f6; font-size: 11px; letter-spacing: .6px; text-transform: uppercase; }
+    tr.is-selected { background: #f0faf7; }
+    .student { font-weight: 800; color: var(--navy); }
+    .thumb { width: 46px; height: 55px; border-radius: 4px; object-fit: cover; background: #e8eeee; border: 1px solid var(--line); display: block; }
+    .thumb.empty { display: grid; place-items: center; color: var(--muted); font-size: 11px; }
+    select { width: 100%; min-width: 230px; border: 1px solid var(--line); border-radius: 4px; padding: 9px; color: var(--ink); background: white; }
+    .match { display: flex; align-items: center; gap: 9px; min-width: 310px; }
+    .match img { width: 38px; height: 46px; object-fit: cover; border-radius: 3px; border: 1px solid var(--line); }
+    .match small { color: var(--muted); display: block; margin-top: 3px; }
+    .match.unmatched { color: #ad3e29; }
+    .pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 15px 20px; }
+    .pagination-actions { display: flex; gap: 8px; }
+    .empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+    .notice { padding: 12px 16px; border-radius: 5px; background: #fff8e9; color: #76531b; border: 1px solid #f0d99b; font-size: 13px; margin-bottom: 18px; }
+    .no-print { }
+    @media (max-width: 700px) { .shell { padding: 14px; } .topbar, .panel-head { align-items: stretch; flex-direction: column; } .toolbar { align-items: stretch; } .toolbar .btn, .toolbar .file-label { width: 100%; } }
+    @media print {
+      @page { size: A4; margin: 12mm; }
+      body { background: white; font-family: Georgia, serif; }
+      .shell { max-width: none; padding: 0; }
+      .topbar { border-bottom: 2px solid #123047; padding-bottom: 10px; }
+      .no-print, .toolbar, .pagination, .notice, th:first-child, td:first-child, th:last-child, td:last-child { display: none !important; }
+      .panel { border: 0; box-shadow: none; }
+      .panel-head { padding: 12px 0; }
+      table { min-width: 0; table-layout: fixed; }
+      th, td { font-size: 10px; padding: 6px; }
+      .thumb { width: 48px; height: 58px; }
+      .print-photo { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="muesa bg.png" alt="MUESA crest">
+        <div><div class="eyebrow">Administrative workspace</div><h1>Student Photo Grid</h1><p class="muted">Match image filenames to registered students, review, then confirm.</p></div>
+      </div>
+      <a class="btn btn-quiet" href="index.html">Back to portal</a>
+    </header>
+
+    <div class="notice">Nothing is saved while files are selected or remapped. Existing student text records are never updated; confirmation writes only the separate photo mapping table.</div>
+    <section class="toolbar no-print">
+      <label class="file-label" for="photoFiles">＋ Choose photos</label>
+      <input id="photoFiles" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
+      <button class="btn btn-secondary" id="confirmBtn" disabled>Confirm selected matches</button>
+      <button class="btn btn-quiet" id="printBtn" disabled>Print / export PDF</button>
+      <button class="btn btn-danger" id="clearBtn">Clear pending files</button>
+      <div class="status muted" id="status">No pending files.</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div><h2>Registered students</h2><p class="muted">Choose a student for each file. Filename matching uses the full name, ignoring case, spaces, punctuation, and the file extension.</p></div>
+        <div class="stats"><span class="stat" id="studentCount">0 students</span><span class="stat" id="matchCount">0 matched</span><span class="stat" id="selectedCount">0 selected</span></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th class="no-print"><input id="selectAll" type="checkbox" aria-label="Select all visible rows"></th><th>Picture</th><th>Student</th><th>Registration no.</th><th>Existing photo</th><th>Pending file mapping</th><th class="no-print">Export</th></tr></thead>
+          <tbody id="studentRows"></tbody>
+        </table>
+        <div class="empty" id="emptyState">Loading registered students...</div>
+      </div>
+      <div class="pagination no-print"><span class="muted" id="pageInfo"></span><div class="pagination-actions"><button class="btn btn-quiet" id="prevBtn">Previous</button><button class="btn btn-quiet" id="nextBtn">Next</button></div></div>
+    </section>
+  </main>
+
+  <script>
+    const state = { students: [], photos: new Map(), files: [], mappings: new Map(), selected: new Set(), page: 1, pageSize: 20 };
+    const $ = id => document.getElementById(id);
+    const normalize = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const fileStem = name => name.replace(/\.[^.]+$/, '');
+    const escapeHtml = value => String(value || '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
+
+    async function readImage(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); }); }
+    function findStudent(fileName) { const stem = normalize(fileStem(fileName)); return state.students.find(student => normalize(student.student_name || student.full_name) === stem) || null; }
+    function photoFor(student) { return state.photos.get(String(student.id)) || state.photos.get(student.reg_no); }
+    function pendingForStudent(studentId) { return state.files.find(file => state.mappings.get(file.key) === String(studentId)); }
+    function pageStudents() { const start = (state.page - 1) * state.pageSize; return state.students.slice(start, start + state.pageSize); }
+
+    function render() {
+      const rows = $('studentRows'); rows.innerHTML = '';
+      const visible = pageStudents();
+      $('emptyState').style.display = visible.length ? 'none' : 'block';
+      visible.forEach(student => {
+        const id = String(student.id), pending = pendingForStudent(id), existing = photoFor(student), checked = state.selected.has(id);
+        const fileOptions = ['<option value="">No pending file</option>'].concat(state.files.map(file => `<option value="${escapeHtml(file.key)}" ${state.mappings.get(file.key) === id ? 'selected' : ''}>${escapeHtml(file.name)}</option>`)).join('');
+        const image = pending ? `<img src="${pending.url}" alt="Pending ${escapeHtml(student.student_name)}">` : existing ? `<img src="${existing.photo_data}" alt="Existing ${escapeHtml(student.student_name)}">` : '<span class="muted">None</span>';
+        rows.insertAdjacentHTML('beforeend', `<tr class="${checked ? 'is-selected' : ''}"><td class="no-print"><input class="row-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''}></td><td>${image}</td><td class="student">${escapeHtml(student.student_name || student.full_name || '-')}</td><td>${escapeHtml(student.reg_no || '-')}</td><td>${existing ? '<span class="muted">Confirmed</span>' : '<span class="muted">Not assigned</span>'}</td><td><div class="match ${pending ? '' : 'unmatched'}">${pending ? `<img src="${pending.url}" alt="">` : '<span>—</span>'}<div><select class="mapping" data-student="${escapeHtml(id)}">${fileOptions}</select><small>${pending ? escapeHtml(pending.name) : 'Filename match not found; choose manually.'}</small></div></div></td><td class="no-print"><input class="export-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''} aria-label="Include ${escapeHtml(student.student_name)} in PDF"></td></tr>`);
+      });
+      const totalPages = Math.max(1, Math.ceil(state.students.length / state.pageSize));
+      $('pageInfo').textContent = `Page ${state.page} of ${totalPages}`;
+      $('prevBtn').disabled = state.page <= 1; $('nextBtn').disabled = state.page >= totalPages;
+      $('studentCount').textContent = `${state.students.length} students`;
+      $('matchCount').textContent = `${state.mappings.size} matched`;
+      $('selectedCount').textContent = `${state.selected.size} selected`;
+      $('confirmBtn').disabled = !Array.from(state.mappings.values()).some(Boolean);
+      $('printBtn').disabled = state.selected.size === 0;
+    }
+
+    function assign(fileKey, studentId) {
+      for (const [key, value] of state.mappings) if (value === studentId && key !== fileKey) state.mappings.delete(key);
+      if (studentId) state.mappings.set(fileKey, studentId); else state.mappings.delete(fileKey);
+      render();
+    }
+
+    $('photoFiles').addEventListener('change', async event => {
+      const selectedFiles = Array.from(event.target.files || []);
+      for (const file of selectedFiles) {
+        const entry = { key: `${file.name}-${file.lastModified}-${Math.random()}`, name: file.name, url: await readImage(file) };
+        state.files.push(entry);
+        const matched = findStudent(file.name); if (matched) state.mappings.set(entry.key, String(matched.id));
+      }
+      $('status').textContent = `${state.files.length} file(s) staged locally. Review mappings before confirming.`;
+      event.target.value = ''; render();
+    });
+    $('studentRows').addEventListener('change', event => {
+      if (event.target.classList.contains('mapping')) assign(event.target.value, event.target.dataset.student);
+      if (event.target.classList.contains('row-check') || event.target.classList.contains('export-check')) { const id = event.target.dataset.id; event.target.checked ? state.selected.add(id) : state.selected.delete(id); render(); }
+    });
+    $('selectAll').addEventListener('change', event => { pageStudents().forEach(student => event.target.checked ? state.selected.add(String(student.id)) : state.selected.delete(String(student.id))); render(); });
+    $('prevBtn').addEventListener('click', () => { state.page--; render(); }); $('nextBtn').addEventListener('click', () => { state.page++; render(); });
+    $('clearBtn').addEventListener('click', () => { state.files = []; state.mappings.clear(); $('status').textContent = 'Pending files cleared. Nothing was saved.'; render(); });
+
+    $('confirmBtn').addEventListener('click', async () => {
+      const photos = Array.from(state.mappings.entries()).map(([key, studentId]) => { const file = state.files.find(item => item.key === key); const student = state.students.find(item => String(item.id) === studentId); return file && student ? { student_id: student.id, reg_no: student.reg_no, photo_data: file.url, file_name: file.name } : null; }).filter(Boolean);
+      if (!photos.length || !confirm(`Confirm ${photos.length} photo mapping(s)? Existing student text data will not be changed.`)) return;
+      $('confirmBtn').disabled = true; $('status').textContent = 'Saving confirmed photo mappings...';
+      try { const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'confirm_photo_batch', photos }) }); const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Save failed'); state.files = []; state.mappings.clear(); $('status').textContent = `${data.saved} mapping(s) confirmed safely.`; await load(); } catch (error) { $('status').textContent = `Save failed: ${error.message}`; render(); }
+    });
+
+    $('printBtn').addEventListener('click', () => { document.querySelectorAll('tr').forEach(row => { const checkbox = row.querySelector('.export-check'); row.style.display = checkbox && !checkbox.checked ? 'none' : ''; }); window.addEventListener('afterprint', () => document.querySelectorAll('tr').forEach(row => row.style.display = ''), { once: true }); window.print(); });
+
+    async function load() { try { const [studentsResponse, photosResponse] = await Promise.all([fetch('/api/index'), fetch('/api/index?action=photos')]); state.students = await studentsResponse.json(); const photos = await photosResponse.json(); photos.forEach(photo => { state.photos.set(String(photo.student_id), photo); state.photos.set(photo.reg_no, photo); }); render(); } catch (error) { $('emptyState').textContent = `Unable to load students: ${error.message}`; $('status').textContent = 'Connection error.'; } }
+    load();
+  </script>
+</body>
+</html>

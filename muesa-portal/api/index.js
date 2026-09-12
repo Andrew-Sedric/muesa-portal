@@ -24,6 +24,22 @@ module.exports = async (req, res) => {
 
   // GET: Fetch records
   if (req.method === 'GET') {
+    if (req.query.action === 'photos') {
+      try {
+        const [rows] = await pool.query(`
+          SELECT student_id, reg_no, photo_data, file_name, updated_at
+          FROM student_photos
+        `);
+        return res.status(200).json(rows);
+      } catch (error) {
+        if (error.code === 'ER_NO_SUCH_TABLE' || error.code === 'ER_BAD_TABLE_ERROR') {
+          return res.status(200).json([]);
+        }
+        console.error('Photo fetch error:', error);
+        return res.status(500).json({ error: error.message });
+      }
+    }
+
     try {
       // Selects all columns including created_at timestamp
       const [rows] = await pool.query('SELECT *, DATE(created_at) as reg_date FROM students ORDER BY id DESC');
@@ -65,6 +81,51 @@ module.exports = async (req, res) => {
           return res.status(200).json({ success: true, user: username, role: 'user' });
         } else {
           return res.status(401).json({ error: 'Invalid username or password.' });
+        }
+      }
+
+      if (action === 'confirm_photo_batch') {
+        if (!Array.isArray(body.photos) || body.photos.length === 0) {
+          return res.status(400).json({ error: 'At least one photo mapping is required.' });
+        }
+
+        const connection = await pool.getConnection();
+        try {
+          await connection.beginTransaction();
+          await connection.query(`
+            CREATE TABLE IF NOT EXISTS student_photos (
+              student_id BIGINT NOT NULL,
+              reg_no VARCHAR(100) NOT NULL,
+              photo_data LONGTEXT NOT NULL,
+              file_name VARCHAR(255) NOT NULL,
+              updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              PRIMARY KEY (student_id),
+              UNIQUE KEY unique_student_photo_reg_no (reg_no)
+            )
+          `);
+
+          for (const photo of body.photos) {
+            if (!photo.student_id || !photo.reg_no || !photo.photo_data || !photo.file_name) {
+              throw new Error('Each photo mapping requires a student, registration number, file name, and image.');
+            }
+            if (!/^data:image\/(jpeg|png|webp|gif);base64,/.test(photo.photo_data)) {
+              throw new Error(`Unsupported image data for ${photo.file_name}.`);
+            }
+            await connection.query(`
+              INSERT INTO student_photos (student_id, reg_no, photo_data, file_name)
+              VALUES (?, ?, ?, ?)
+              ON DUPLICATE KEY UPDATE
+                reg_no = VALUES(reg_no), photo_data = VALUES(photo_data), file_name = VALUES(file_name)
+            `, [photo.student_id, photo.reg_no, photo.photo_data, photo.file_name]);
+          }
+
+          await connection.commit();
+          return res.status(200).json({ success: true, saved: body.photos.length });
+        } catch (error) {
+          await connection.rollback();
+          throw error;
+        } finally {
+          connection.release();
         }
       }
 
