@@ -50,20 +50,21 @@
     .card-status.printed { color: #177245; }
     .card-status.ready { color: #76531b; }
     .id-card-print { display: none; }
-    .id-card { width: 131.2mm; height: 81.6mm; overflow: hidden; border: 1px solid #061d37; border-radius: 4mm; background: linear-gradient(135deg, #fff 0%, #fff 68%, #eefbff 100%); color: #061d37; font-family: Arial, sans-serif; position: relative; break-inside: avoid; }
-    .id-card::before { content: ''; position: absolute; right: -18mm; bottom: -22mm; width: 62mm; height: 62mm; border: 2mm solid rgba(0, 166, 232, .09); border-radius: 50%; box-shadow: 0 0 0 4mm rgba(0, 30, 210, .045), 0 0 0 8mm rgba(255, 242, 0, .08); pointer-events: none; }
-    .id-card-head { height: 22mm; display: flex; align-items: center; gap: 4mm; padding: 2.5mm 5mm; color: white; background: #061d37; border-bottom: 1.5mm solid #fff200; }
+    .id-card { width: 131.2mm; height: 81.6mm; overflow: hidden; border: 1px solid #061d37; border-radius: 4mm; background: linear-gradient(135deg, #fff 0%, #fff 62%, #eefbff 100%); color: #061d37; font-family: Arial, sans-serif; position: relative; break-inside: avoid; }
+    .id-card::before { content: ''; position: absolute; right: -18mm; bottom: -22mm; width: 62mm; height: 62mm; border: 2mm solid rgba(0, 166, 232, .1); border-radius: 50%; box-shadow: 0 0 0 4mm rgba(0, 30, 210, .06), 0 0 0 8mm rgba(226, 28, 17, .05); pointer-events: none; }
+    .id-card::after { content: ''; position: absolute; left: 49mm; top: 25mm; width: 34mm; height: 34mm; border: .8mm solid rgba(0, 166, 232, .08); transform: rotate(45deg); box-shadow: 0 0 0 3mm rgba(0, 30, 210, .035), 0 0 0 6mm rgba(226, 28, 17, .025); pointer-events: none; }
+    .id-card-head { height: 22mm; display: flex; align-items: center; gap: 4mm; padding: 2.5mm 5mm; color: white; background: #061d37; border-bottom: 1.5mm solid #001ed2; }
     .id-card-head img { width: 15mm; height: 15mm; flex: 0 0 15mm; object-fit: contain; background: white; border: .5mm solid #00a6e8; border-radius: 50%; }
     .id-card-head img:last-child { width: 12mm; height: 15mm; flex-basis: 12mm; border: 0; border-radius: 0; background: transparent; }
     .id-card-head div { min-width: 0; flex: 1; line-height: 1; }
     .id-card-head strong { display: block; color: white; font-size: 5.25mm; letter-spacing: 0; white-space: nowrap; }
-    .id-card-head strong em { color: #fff200; font-style: normal; }
-    .id-card-head > div > span { display: block; color: #00a6e8; font-size: 4mm; margin-top: 1.5mm; }
+    .id-card-head strong em { color: #00a6e8; font-style: normal; }
+    .id-card-head > div > span { display: block; color: #00a6e8; font-size: 3.6mm; margin-top: 1.5mm; text-align: center; text-transform: uppercase; white-space: nowrap; }
     .id-card-main { display: flex; height: 59.6mm; }
     .id-card-photo-column { width: 43mm; padding: 3mm 7mm 0; border-right: .3mm solid #00a6e8; }
     .id-card-photo { width: 34mm; height: 35mm; object-fit: cover; border: .7mm solid #061d37; border-radius: 4mm; display: block; }
     .id-card-idno { width: 34mm; margin: 2mm -7mm 0; padding: 1.5mm 0; color: white; background: #061d37; text-align: center; font-size: 3.6mm; line-height: 1.25; }
-    .id-card-idno strong { display: block; color: #fff200; font-size: 5mm; }
+    .id-card-idno strong { display: block; color: #00a6e8; font-size: 5mm; }
     .id-card-barcode { display: block; width: 32mm; height: 9mm; margin: 1mm auto 0; background: white; }
     .id-card-details { flex: 1; padding: 3.5mm 4mm 16mm; position: relative; }
     .id-card-details::after { content: ''; position: absolute; inset: 4mm 3mm 0 42mm; background: url('muesa bg.png') center/contain no-repeat; opacity: .07; pointer-events: none; }
@@ -80,9 +81,9 @@
     .id-card-date b, .id-card-date span { display: block; }
     .id-card-date b { font-size: 3.3mm; }
     .id-card-date span { font-size: 3.4mm; margin-top: .6mm; }
-    .id-card-qr { position: absolute; z-index: 3; right: 5mm; bottom: 7mm; width: 18mm; height: 18mm; padding: 1.5mm; background: white; border: .4mm solid #061d37; border-radius: 2mm; box-shadow: 0 0 0 1mm white; }
-    .id-card-qr canvas, .id-card-qr img { width: 100%; height: 100%; display: block; }
-    .id-card-verify { position: absolute; z-index: 3; right: 5mm; bottom: 1mm; width: 18mm; padding: .6mm 0; color: #061d37; background: #fff200; border-radius: 1.5mm; text-align: center; font-size: 2.8mm; font-weight: 700; }
+    .id-card-qr { position: absolute; z-index: 3; right: 4.5mm; bottom: 7mm; width: 19mm; height: 19mm; padding: 1.8mm; background: white; border: .4mm solid #061d37; border-radius: 2mm; box-shadow: 0 0 0 1mm white; overflow: hidden; }
+    .id-card-qr canvas, .id-card-qr img { width: 100% !important; height: 100% !important; display: block; image-rendering: pixelated; }
+    .id-card-verify { position: absolute; z-index: 3; right: 4.5mm; bottom: 1mm; width: 19mm; padding: .6mm 0; color: white; background: #001ed2; border-radius: 1.5mm; text-align: center; font-size: 2.8mm; font-weight: 700; }
     .id-card-foot { height: 0; }
     .pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 15px 20px; }
     .pagination-actions { display: flex; gap: 8px; }
@@ -146,7 +147,7 @@
 
   <section class="id-card-print" id="idCardPrint" aria-hidden="true">
     <article class="id-card">
-      <header class="id-card-head"><img src="mru logo.png" alt="Mutesa I Royal University logo"><div><strong><em>MUTESA I</em> ROYAL UNIVERSITY</strong><span>Education Students Association</span></div><img src="muesa bg.png" alt="MUESA association crest"></header>
+      <header class="id-card-head"><img src="mru logo.png" alt="Mutesa I Royal University logo"><div><strong><em>MUTESA I</em> ROYAL UNIVERSITY</strong><span>EDUCATION STUDENTS ASSOCIATION</span></div><img src="muesa bg.png" alt="MUESA association crest"></header>
       <div class="id-card-main">
         <div class="id-card-photo-column"><img id="cardPhoto" class="id-card-photo" alt="Student photo"><div class="id-card-idno">ID NO:<strong id="cardIdNumber"></strong><svg id="cardBarcode" class="id-card-barcode" role="img" aria-label="Student barcode"></svg></div></div>
         <div class="id-card-details"><h2><span id="cardName"></span><small>STUDENT ID CARD</small></h2><div class="id-card-detail"><span class="id-card-detail-icon">●</span><div><b>DEPARTMENT</b><span>Education Students Association</span></div></div><div class="id-card-detail"><span class="id-card-detail-icon">♀</span><div><b>GENDER</b><span id="cardGender"></span></div></div><div class="id-card-detail"><span class="id-card-detail-icon">▮</span><div><b>STUDENT NUMBER</b><span id="cardStudentNumber"></span></div></div><div class="id-card-dates"><div class="id-card-date"><b>ISSUE DATE</b><span>01/08/2026</span></div><div class="id-card-date"><b>EXPIRY DATE</b><span>01/01/2030</span></div></div><div id="cardQr" class="id-card-qr" aria-label="QR code containing student information"></div><div class="id-card-verify">SCAN TO VERIFY</div></div>
