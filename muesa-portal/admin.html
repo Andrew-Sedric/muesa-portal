@@ -50,37 +50,39 @@
     .card-status.printed { color: #177245; }
     .card-status.ready { color: #76531b; }
     .id-card-print { display: none; }
-    .id-card { width: 131.2mm; height: 81.6mm; overflow: hidden; border: 1px solid #071d38; border-radius: 4mm; background: #f7f7f9; color: #080f1b; font-family: Arial, sans-serif; position: relative; break-inside: avoid; }
-    .id-card-head { height: 22mm; display: flex; align-items: center; justify-content: space-between; gap: 4mm; padding: 2.5mm 6mm; color: white; background: #061d37; border-bottom: 1.5mm solid #cba65d; }
-    .id-card-head img { width: 14mm; height: 14mm; flex: 0 0 14mm; object-fit: contain; background: white; border: .5mm solid #cba65d; border-radius: 50%; }
-    .id-card-head div { flex: 1; line-height: 1; }
-    .id-card-head strong { display: block; color: white; font-size: 6.3mm; letter-spacing: 0; white-space: nowrap; }
-    .id-card-head strong em { color: #cba65d; font-style: normal; }
-    .id-card-head > div > span { display: block; color: #cba65d; font-size: 4mm; margin-top: 1.5mm; }
+    .id-card { width: 131.2mm; height: 81.6mm; overflow: hidden; border: 1px solid #061d37; border-radius: 4mm; background: linear-gradient(135deg, #fff 0%, #fff 68%, #eefbff 100%); color: #061d37; font-family: Arial, sans-serif; position: relative; break-inside: avoid; }
+    .id-card::before { content: ''; position: absolute; right: -18mm; bottom: -22mm; width: 62mm; height: 62mm; border: 2mm solid rgba(0, 166, 232, .09); border-radius: 50%; box-shadow: 0 0 0 4mm rgba(0, 30, 210, .045), 0 0 0 8mm rgba(255, 242, 0, .08); pointer-events: none; }
+    .id-card-head { height: 22mm; display: flex; align-items: center; gap: 4mm; padding: 2.5mm 5mm; color: white; background: #061d37; border-bottom: 1.5mm solid #fff200; }
+    .id-card-head img { width: 15mm; height: 15mm; flex: 0 0 15mm; object-fit: contain; background: white; border: .5mm solid #00a6e8; border-radius: 50%; }
+    .id-card-head img:last-child { width: 12mm; height: 15mm; flex-basis: 12mm; border: 0; border-radius: 0; background: transparent; }
+    .id-card-head div { min-width: 0; flex: 1; line-height: 1; }
+    .id-card-head strong { display: block; color: white; font-size: 5.25mm; letter-spacing: 0; white-space: nowrap; }
+    .id-card-head strong em { color: #fff200; font-style: normal; }
+    .id-card-head > div > span { display: block; color: #00a6e8; font-size: 4mm; margin-top: 1.5mm; }
     .id-card-main { display: flex; height: 59.6mm; }
-    .id-card-photo-column { width: 43mm; padding: 3mm 7mm 0; border-right: .3mm solid #9b9b9b; }
-    .id-card-photo { width: 34mm; height: 35mm; object-fit: cover; border: .7mm solid #071d38; border-radius: 4mm; display: block; }
+    .id-card-photo-column { width: 43mm; padding: 3mm 7mm 0; border-right: .3mm solid #00a6e8; }
+    .id-card-photo { width: 34mm; height: 35mm; object-fit: cover; border: .7mm solid #061d37; border-radius: 4mm; display: block; }
     .id-card-idno { width: 34mm; margin: 2mm -7mm 0; padding: 1.5mm 0; color: white; background: #061d37; text-align: center; font-size: 3.6mm; line-height: 1.25; }
-    .id-card-idno strong { display: block; color: #cba65d; font-size: 5mm; }
+    .id-card-idno strong { display: block; color: #fff200; font-size: 5mm; }
     .id-card-barcode { display: block; width: 32mm; height: 9mm; margin: 1mm auto 0; background: white; }
     .id-card-details { flex: 1; padding: 3.5mm 4mm 16mm; position: relative; }
-    .id-card-details::after { content: ''; position: absolute; inset: 4mm 3mm 0 42mm; background: url('muesa bg.png') center/contain no-repeat; opacity: .13; pointer-events: none; }
-    .id-card-details h2 { position: relative; z-index: 1; margin: 0 0 2mm; color: #061d37; font-size: 6.4mm; border-bottom: .3mm solid #777; padding-bottom: 1mm; }
+    .id-card-details::after { content: ''; position: absolute; inset: 4mm 3mm 0 42mm; background: url('muesa bg.png') center/contain no-repeat; opacity: .07; pointer-events: none; }
+    .id-card-details h2 { position: relative; z-index: 1; margin: 0 0 2mm; color: #001ed2; font-size: 6.4mm; border-bottom: .3mm solid #00a6e8; padding-bottom: 1mm; }
     .id-card-details h2 span, .id-card-details h2 small { display: block; }
-    .id-card-details h2 small { color: #a17e3d; font-size: 4.8mm; font-weight: normal; margin-top: .7mm; }
+    .id-card-details h2 small { color: #e21c11; font-size: 4.8mm; font-weight: normal; margin-top: .7mm; }
     .id-card-detail { position: relative; z-index: 1; display: grid; grid-template-columns: 7mm 1fr; align-items: center; margin: 1.1mm 0; }
-    .id-card-detail-icon { width: 5mm; height: 5mm; display: grid; place-items: center; color: #9b9b9b; font-size: 3.2mm; font-weight: bold; }
+    .id-card-detail-icon { width: 5mm; height: 5mm; display: grid; place-items: center; color: #e21c11; font-size: 3.2mm; font-weight: bold; }
     .id-card-detail b, .id-card-detail span { display: block; }
     .id-card-detail b { font-size: 3.5mm; line-height: 1; }
     .id-card-detail span { font-size: 3.5mm; line-height: 1.05; margin-top: .5mm; }
-    .id-card-dates { position: absolute; z-index: 2; left: 10mm; right: 27mm; bottom: 2mm; display: grid; grid-template-columns: 1fr 1fr; padding-top: 1mm; background: rgba(247,247,249,.96); text-align: center; }
-    .id-card-date + .id-card-date { border-left: .3mm solid #777; }
+    .id-card-dates { position: absolute; z-index: 2; left: 10mm; right: 29mm; bottom: 2mm; display: grid; grid-template-columns: 1fr 1fr; padding-top: 1mm; background: rgba(255,255,255,.96); text-align: center; }
+    .id-card-date + .id-card-date { border-left: .3mm solid #00a6e8; }
     .id-card-date b, .id-card-date span { display: block; }
     .id-card-date b { font-size: 3.3mm; }
     .id-card-date span { font-size: 3.4mm; margin-top: .6mm; }
-    .id-card-qr { position: absolute; z-index: 3; right: 6mm; bottom: 2mm; width: 16mm; height: 16mm; padding: 1mm; background: white; border: .3mm solid #080f1b; border-radius: 2mm; }
+    .id-card-qr { position: absolute; z-index: 3; right: 5mm; bottom: 7mm; width: 18mm; height: 18mm; padding: 1.5mm; background: white; border: .4mm solid #061d37; border-radius: 2mm; box-shadow: 0 0 0 1mm white; }
     .id-card-qr canvas, .id-card-qr img { width: 100%; height: 100%; display: block; }
-    .id-card-verify { position: absolute; z-index: 3; right: 5mm; bottom: 0; width: 18mm; padding: .8mm 0; background: #cba65d; border-radius: 1.5mm 1.5mm 0 0; text-align: center; font-size: 2.8mm; }
+    .id-card-verify { position: absolute; z-index: 3; right: 5mm; bottom: 1mm; width: 18mm; padding: .6mm 0; color: #061d37; background: #fff200; border-radius: 1.5mm; text-align: center; font-size: 2.8mm; font-weight: 700; }
     .id-card-foot { height: 0; }
     .pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 15px 20px; }
     .pagination-actions { display: flex; gap: 8px; }
