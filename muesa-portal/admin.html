@@ -59,6 +59,7 @@
     .id-card-head div { min-width: 0; flex: 1; line-height: 1; }
     .id-card-head strong { display: block; color: white; font-size: 5.25mm; letter-spacing: 0; white-space: nowrap; }
     .id-card-head strong em { color: #00a6e8; font-style: normal; }
+    .id-card-head strong span { color: #e87835; }
     .id-card-head > div > span { display: block; color: #00a6e8; font-size: 3.6mm; margin-top: 1.5mm; text-align: center; text-transform: uppercase; white-space: nowrap; }
     .id-card-main { display: flex; height: 59.6mm; }
     .id-card-photo-column { width: 43mm; padding: 3mm 7mm 0; border-right: .3mm solid #00a6e8; }
@@ -89,7 +90,6 @@
     .pagination-actions { display: flex; gap: 8px; }
     .empty { padding: 40px 20px; text-align: center; color: var(--muted); }
     .notice { padding: 12px 16px; border-radius: 5px; background: #fff8e9; color: #76531b; border: 1px solid #f0d99b; font-size: 13px; margin-bottom: 18px; }
-    .no-print { }
     @media (max-width: 700px) { .shell { padding: 14px; } .topbar, .panel-head { align-items: stretch; flex-direction: column; } .toolbar { align-items: stretch; } .toolbar .btn, .toolbar .file-label { width: 100%; } }
     @media print {
       @page { size: A4 landscape; margin: 10mm; }
@@ -147,7 +147,7 @@
 
   <section class="id-card-print" id="idCardPrint" aria-hidden="true">
     <article class="id-card">
-      <header class="id-card-head"><img src="mru logo.png" alt="Mutesa I Royal University logo"><div><strong><em>MUTESA I</em> ROYAL UNIVERSITY</strong><span>EDUCATION STUDENTS ASSOCIATION</span></div><img src="muesa bg.png" alt="MUESA association crest"></header>
+      <header class="id-card-head"><img src="mru logo.png" alt="Mutesa I Royal University logo"><div><strong><em>MUTESA I</em> <span>ROYAL UNIVERSITY</span></strong><span>EDUCATION STUDENTS ASSOCIATION</span></div><img src="muesa bg.png" alt="MUESA association crest"></header>
       <div class="id-card-main">
         <div class="id-card-photo-column"><img id="cardPhoto" class="id-card-photo" alt="Student photo"><div class="id-card-idno">ID NO:<strong id="cardIdNumber"></strong><svg id="cardBarcode" class="id-card-barcode" role="img" aria-label="Student barcode"></svg></div></div>
         <div class="id-card-details"><h2><span id="cardName"></span><small>STUDENT ID CARD</small></h2><div class="id-card-detail"><span class="id-card-detail-icon">●</span><div><b>DEPARTMENT</b><span>Education Students Association</span></div></div><div class="id-card-detail"><span class="id-card-detail-icon">♀</span><div><b>GENDER</b><span id="cardGender"></span></div></div><div class="id-card-detail"><span class="id-card-detail-icon">▮</span><div><b>STUDENT NUMBER</b><span id="cardStudentNumber"></span></div></div><div class="id-card-dates"><div class="id-card-date"><b>ISSUE DATE</b><span>01/08/2026</span></div><div class="id-card-date"><b>EXPIRY DATE</b><span>01/01/2030</span></div></div><div id="cardQr" class="id-card-qr" aria-label="QR code containing student information"></div><div class="id-card-verify">SCAN TO VERIFY</div></div>
