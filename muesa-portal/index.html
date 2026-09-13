@@ -206,7 +206,7 @@
           </div>
 
           <div class="form-group">
-            <label>Reg / Student No</label>
+            <label>Student Number</label>
             <input type="text" id="reg_no" placeholder="e.g. MRU2026003244" required>
           </div>
 
@@ -277,7 +277,7 @@
         <strong>Fields to print:</strong>
         <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="photo" checked> Photo</label>
         <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="name" checked> Name</label>
-        <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="regNo" checked> Reg No</label>
+        <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="regNo" checked> Student Number</label>
         <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="email" checked> Email</label>
         <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="phone" checked> Contact</label>
         <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="studentClass" checked> Sem</label>
@@ -297,8 +297,8 @@
       <!-- SEARCH & FILTERS ROW -->
       <div class="form-grid" style="margin-bottom: 18px; grid-template-columns: 2fr 1fr 1fr 1fr auto;">
         <div class="form-group">
-          <label>🔍 Search Name or Reg No</label>
-          <input type="text" id="searchInput" placeholder="Type name or reg number..." onkeyup="filterRecords()">
+          <label>🔍 Search Name or Student Number</label>
+          <input type="text" id="searchInput" placeholder="Type name or student number..." onkeyup="filterRecords()">
         </div>
         <div class="form-group">
           <label>📅 Filter Date</label>
@@ -334,7 +334,7 @@
               <th class="no-print" style="width: 30px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th>
               <th data-print-field="photo">Photo</th>
               <th data-print-field="name">Name</th>
-              <th data-print-field="regNo">Reg No</th>
+              <th data-print-field="regNo">Student Number</th>
               <th data-print-field="email">Email</th>
               <th data-print-field="phone">Phone</th>
               <th data-print-field="studentClass">Sem</th>

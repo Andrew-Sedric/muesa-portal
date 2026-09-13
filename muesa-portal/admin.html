@@ -46,6 +46,23 @@
     .match img { width: 38px; height: 46px; object-fit: cover; border-radius: 3px; border: 1px solid var(--line); }
     .match small { color: var(--muted); display: block; margin-top: 3px; }
     .match.unmatched { color: #ad3e29; }
+    .card-status { font-size: 12px; font-weight: 800; color: #ad3e29; }
+    .card-status.printed { color: #177245; }
+    .card-status.ready { color: #76531b; }
+    .id-card-print { display: none; }
+    .id-card { width: 86mm; min-height: 54mm; border: 1px solid #123047; background: white; color: #17333b; font-family: Arial, sans-serif; }
+    .id-card-head { display: flex; align-items: center; justify-content: space-between; gap: 7px; padding: 7px 9px; color: white; background: #123047; }
+    .id-card-head img { width: 30px; height: 30px; object-fit: contain; background: white; border-radius: 3px; }
+    .id-card-head div { flex: 1; text-align: center; font-size: 8px; line-height: 1.3; }
+    .id-card-head span { display: block; color: #f5c38d; font-size: 7px; }
+    .id-card-body { display: flex; gap: 10px; padding: 10px; }
+    .id-card-photo { width: 25mm; height: 31mm; object-fit: cover; border: 1px solid #d8e2e1; }
+    .id-card-details { flex: 1; }
+    .id-card-details h2 { margin: 0 0 8px; color: #008c95; font-size: 11px; }
+    .id-card-details p { margin: 0 0 5px; font-size: 8px; }
+    .id-card-details b, .id-card-details span { display: block; }
+    .id-card-details b { color: #60767a; font-size: 7px; text-transform: uppercase; }
+    .id-card-foot { padding: 5px 9px; border-top: 1px solid #d8e2e1; color: #60767a; font-size: 7px; text-align: center; }
     .pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 15px 20px; }
     .pagination-actions { display: flex; gap: 8px; }
     .empty { padding: 40px 20px; text-align: center; color: var(--muted); }
@@ -64,6 +81,9 @@
       th, td { font-size: 10px; padding: 6px; }
       .student-photo { width: 36px; height: 46px; max-width: 36px; max-height: 46px; }
       .print-photo { display: block; }
+      body > *:not(#idCardPrint) { display: none !important; }
+      #idCardPrint.is-printing { display: block; position: absolute; left: 0; top: 0; }
+      @page { size: auto; margin: 8mm; }
     }
   </style>
 </head>
@@ -94,7 +114,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th class="no-print"><input id="selectAll" type="checkbox" aria-label="Select all visible rows"></th><th>Picture</th><th>Student</th><th>Registration no.</th><th>Existing photo</th><th>Pending file mapping</th><th class="no-print">Export</th></tr></thead>
+          <thead><tr><th class="no-print"><input id="selectAll" type="checkbox" aria-label="Select all visible rows"></th><th>Picture</th><th>Student</th><th>Student number</th><th>Existing photo</th><th>Pending file mapping</th><th>Card status</th><th class="no-print">Export</th></tr></thead>
           <tbody id="studentRows"></tbody>
         </table>
         <div class="empty" id="emptyState">Loading registered students...</div>
@@ -103,8 +123,16 @@
     </section>
   </main>
 
+  <section class="id-card-print" id="idCardPrint" aria-hidden="true">
+    <article class="id-card">
+      <header class="id-card-head"><img src="mru logo.png" alt="Mutesa I Royal University logo"><div><strong>MUTESA I ROYAL UNIVERSITY</strong><span>Education Students Association</span></div><img src="muesa bg.png" alt="MUESA association crest"></header>
+      <div class="id-card-body"><img id="cardPhoto" class="id-card-photo" alt="Student photo"><div class="id-card-details"><h2>STUDENT ID CARD</h2><p><b>Name</b><span id="cardName"></span></p><p><b>Student Number</b><span id="cardStudentNumber"></span></p><p><b>Class / Semester</b><span id="cardClass"></span></p><p><b>Year</b><span id="cardYear"></span></p></div></div>
+      <footer class="id-card-foot">MUESA • Official student identification</footer>
+    </article>
+  </section>
+
   <script>
-    const state = { students: [], photos: new Map(), files: [], mappings: new Map(), selected: new Set(), page: 1, pageSize: 20 };
+    const state = { students: [], photos: new Map(), files: [], mappings: new Map(), selected: new Set(), printed: new Map(), page: 1, pageSize: 20 };
     const $ = id => document.getElementById(id);
     const normalize = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const fileStem = name => name.replace(/\.[^.]+$/, '');
@@ -136,15 +164,26 @@
     function pendingForStudent(studentId) { return state.files.find(file => state.mappings.get(file.key) === String(studentId)); }
     function pageStudents() { const start = (state.page - 1) * state.pageSize; return state.students.slice(start, start + state.pageSize); }
 
+    function cardMissing(student, photo) {
+      const missing = [];
+      if (!student.student_name && !student.full_name) missing.push('name');
+      if (!student.reg_no) missing.push('student number');
+      if (!photo) missing.push('photo');
+      return missing;
+    }
+
     function render() {
       const rows = $('studentRows'); rows.innerHTML = '';
       const visible = pageStudents();
       $('emptyState').style.display = visible.length ? 'none' : 'block';
       visible.forEach(student => {
-        const id = String(student.id), pending = pendingForStudent(id), existing = photoFor(student), checked = state.selected.has(id);
+        const id = String(student.id), pending = pendingForStudent(id), existing = photoFor(student), checked = state.selected.has(id), photo = pending || existing;
+        const missing = cardMissing(student, photo);
+        const status = missing.length ? `<span class="card-status">Missing ${escapeHtml(missing.join(', '))}</span>` : state.printed.get(id) ? `<span class="card-status printed">Printed ${escapeHtml(state.printed.get(id))}</span>` : '<span class="card-status ready">Ready to print</span>';
+        const printButton = missing.length ? `<button class="btn btn-quiet" disabled>Cannot print</button>` : `<button class="btn btn-primary print-card" data-id="${escapeHtml(id)}">${state.printed.get(id) ? 'Print again' : 'Print card'}</button>`;
         const fileOptions = ['<option value="">No pending file</option>'].concat(state.files.map(file => `<option value="${escapeHtml(file.key)}" ${state.mappings.get(file.key) === id ? 'selected' : ''}>${escapeHtml(file.name)}</option>`)).join('');
         const image = pending ? `<img class="student-photo" src="${pending.url}" alt="Pending ${escapeHtml(student.student_name)}">` : existing ? `<img class="student-photo" src="${existing.photo_data}" alt="Existing ${escapeHtml(student.student_name)}">` : '<span class="muted">None</span>';
-        rows.insertAdjacentHTML('beforeend', `<tr class="${checked ? 'is-selected' : ''}"><td class="no-print"><input class="row-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''}></td><td>${image}</td><td class="student">${escapeHtml(student.student_name || student.full_name || '-')}</td><td>${escapeHtml(student.reg_no || '-')}</td><td>${existing ? '<span class="muted">Confirmed</span>' : '<span class="muted">Not assigned</span>'}</td><td><div class="match ${pending ? '' : 'unmatched'}">${pending ? `<img src="${pending.url}" alt="">` : '<span>—</span>'}<div><select class="mapping" data-student="${escapeHtml(id)}">${fileOptions}</select><small>${pending ? escapeHtml(pending.name) : 'Filename match not found; choose manually.'}</small></div></div></td><td class="no-print"><input class="export-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''} aria-label="Include ${escapeHtml(student.student_name)} in PDF"></td></tr>`);
+        rows.insertAdjacentHTML('beforeend', `<tr class="${checked ? 'is-selected' : ''}"><td class="no-print"><input class="row-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''}></td><td>${image}</td><td class="student">${escapeHtml(student.student_name || student.full_name || '-')}</td><td>${escapeHtml(student.reg_no || '-')}</td><td>${existing ? '<span class="muted">Confirmed</span>' : '<span class="muted">Not assigned</span>'}</td><td><div class="match ${pending ? '' : 'unmatched'}">${pending ? `<img src="${pending.url}" alt="">` : '<span>—</span>'}<div><select class="mapping" data-student="${escapeHtml(id)}">${fileOptions}</select><small>${pending ? escapeHtml(pending.name) : 'Filename match not found; choose manually.'}</small></div></div></td><td>${status}</td><td class="no-print"><div style="display:grid;gap:6px">${printButton}<input class="export-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''} aria-label="Include ${escapeHtml(student.student_name)} in PDF"></div></td></tr>`);
       });
       const totalPages = Math.max(1, Math.ceil(state.students.length / state.pageSize));
       $('pageInfo').textContent = `Page ${state.page} of ${totalPages}`;
@@ -176,6 +215,7 @@
       if (event.target.classList.contains('mapping')) assign(event.target.value, event.target.dataset.student);
       if (event.target.classList.contains('row-check') || event.target.classList.contains('export-check')) { const id = event.target.dataset.id; event.target.checked ? state.selected.add(id) : state.selected.delete(id); render(); }
     });
+    $('studentRows').addEventListener('click', event => { if (event.target.classList.contains('print-card')) printCard(event.target.dataset.id); });
     $('selectAll').addEventListener('change', event => { pageStudents().forEach(student => event.target.checked ? state.selected.add(String(student.id)) : state.selected.delete(String(student.id))); render(); });
     $('prevBtn').addEventListener('click', () => { state.page--; render(); }); $('nextBtn').addEventListener('click', () => { state.page++; render(); });
     $('clearBtn').addEventListener('click', () => { state.files = []; state.mappings.clear(); $('status').textContent = 'Pending files cleared. Nothing was saved.'; render(); });
@@ -202,7 +242,29 @@
 
     $('printBtn').addEventListener('click', () => { document.querySelectorAll('tr').forEach(row => { const checkbox = row.querySelector('.export-check'); row.style.display = checkbox && !checkbox.checked ? 'none' : ''; }); window.addEventListener('afterprint', () => document.querySelectorAll('tr').forEach(row => row.style.display = ''), { once: true }); window.print(); });
 
-    async function load() { try { const [studentsResponse, photosResponse] = await Promise.all([fetch('/api/index'), fetch('/api/index?action=photos')]); state.students = await studentsResponse.json(); const photos = await photosResponse.json(); photos.forEach(photo => { state.photos.set(String(photo.student_id), photo); state.photos.set(photo.reg_no, photo); }); render(); } catch (error) { $('emptyState').textContent = `Unable to load students: ${error.message}`; $('status').textContent = 'Connection error.'; } }
+    async function printCard(studentId) {
+      const student = state.students.find(item => String(item.id) === String(studentId));
+      const photo = pendingForStudent(studentId) || photoFor(student);
+      const missing = cardMissing(student, photo);
+      if (missing.length) { alert(`Cannot print this card. Missing ${missing.join(', ')}.`); return; }
+      try {
+        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'mark_card_printed', student_id: student.id }) });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to save printed status.');
+        state.printed.set(String(student.id), data.printed_at);
+        $('cardPhoto').src = photo.url || photo.photo_data;
+        $('cardName').textContent = student.student_name || student.full_name;
+        $('cardStudentNumber').textContent = student.reg_no;
+        $('cardClass').textContent = student.student_class || '-';
+        $('cardYear').textContent = student.year || '-';
+        $('idCardPrint').classList.add('is-printing');
+        window.addEventListener('afterprint', () => $('idCardPrint').classList.remove('is-printing'), { once: true });
+        window.print();
+        render();
+      } catch (error) { alert(error.message); }
+    }
+
+    async function load() { try { const [studentsResponse, photosResponse] = await Promise.all([fetch('/api/index'), fetch('/api/index?action=photos')]); state.students = await studentsResponse.json(); const photos = await photosResponse.json(); photos.forEach(photo => { state.photos.set(String(photo.student_id), photo); state.photos.set(photo.reg_no, photo); if (photo.printed_at) state.printed.set(String(photo.student_id), new Date(photo.printed_at).toLocaleString()); }); render(); } catch (error) { $('emptyState').textContent = `Unable to load students: ${error.message}`; $('status').textContent = 'Connection error.'; } }
     load();
   </script>
 </body>

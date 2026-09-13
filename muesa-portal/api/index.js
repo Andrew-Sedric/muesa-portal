@@ -26,9 +26,16 @@ module.exports = async (req, res) => {
   if (req.method === 'GET') {
     if (req.query.action === 'photos') {
       try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS student_card_prints (
+            student_id BIGINT NOT NULL PRIMARY KEY,
+            printed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          )
+        `);
         const [rows] = await pool.query(`
-          SELECT student_id, reg_no, photo_data, file_name, updated_at
-          FROM student_photos
+          SELECT photos.student_id, photos.reg_no, photos.photo_data, photos.file_name, photos.updated_at, prints.printed_at
+          FROM student_photos photos
+          LEFT JOIN student_card_prints prints ON prints.student_id = photos.student_id
         `);
         return res.status(200).json(rows);
       } catch (error) {
@@ -129,6 +136,24 @@ module.exports = async (req, res) => {
         }
       }
 
+      if (action === 'mark_card_printed') {
+        if (!body.student_id) {
+          return res.status(400).json({ error: 'Student ID is required.' });
+        }
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS student_card_prints (
+            student_id BIGINT NOT NULL PRIMARY KEY,
+            printed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          )
+        `);
+        await pool.query(`
+          INSERT INTO student_card_prints (student_id) VALUES (?)
+          ON DUPLICATE KEY UPDATE printed_at = CURRENT_TIMESTAMP
+        `, [body.student_id]);
+        const [rows] = await pool.query('SELECT printed_at FROM student_card_prints WHERE student_id = ?', [body.student_id]);
+        return res.status(200).json({ success: true, printed_at: rows[0].printed_at });
+      }
+
       const {
         student_name,
         reg_no,
@@ -200,7 +225,7 @@ module.exports = async (req, res) => {
                   <p>Dear <strong>${student_name}</strong>,</p>
                   <p>Your payment has been successfully recorded on the MUESA Portal.</p>
                   <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Reg / Student No:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${reg_no}</td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Student Number:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${reg_no}</td></tr>
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Class / Semester:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${student_class}</td></tr>
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Year:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${year}</td></tr>
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Payment Type:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${finalPaymentType}</td></tr>
