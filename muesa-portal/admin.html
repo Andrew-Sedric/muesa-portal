@@ -50,19 +50,38 @@
     .card-status.printed { color: #177245; }
     .card-status.ready { color: #76531b; }
     .id-card-print { display: none; }
-    .id-card { width: 86mm; min-height: 54mm; border: 1px solid #123047; background: white; color: #17333b; font-family: Arial, sans-serif; }
-    .id-card-head { display: flex; align-items: center; justify-content: space-between; gap: 7px; padding: 7px 9px; color: white; background: #123047; }
-    .id-card-head img { width: 30px; height: 30px; object-fit: contain; background: white; border-radius: 3px; }
-    .id-card-head div { flex: 1; text-align: center; font-size: 8px; line-height: 1.3; }
-    .id-card-head span { display: block; color: #f5c38d; font-size: 7px; }
-    .id-card-body { display: flex; gap: 10px; padding: 10px; }
-    .id-card-photo { width: 25mm; height: 31mm; object-fit: cover; border: 1px solid #d8e2e1; }
-    .id-card-details { flex: 1; }
-    .id-card-details h2 { margin: 0 0 8px; color: #008c95; font-size: 11px; }
-    .id-card-details p { margin: 0 0 5px; font-size: 8px; }
-    .id-card-details b, .id-card-details span { display: block; }
-    .id-card-details b { color: #60767a; font-size: 7px; text-transform: uppercase; }
-    .id-card-foot { padding: 5px 9px; border-top: 1px solid #d8e2e1; color: #60767a; font-size: 7px; text-align: center; }
+    .id-card { width: 131.2mm; height: 81.6mm; overflow: hidden; border: 1px solid #071d38; border-radius: 4mm; background: #f7f7f9; color: #080f1b; font-family: Arial, sans-serif; position: relative; }
+    .id-card-head { height: 24mm; display: flex; align-items: center; justify-content: space-between; gap: 5mm; padding: 3mm 7mm; color: white; background: #061d37; border-bottom: 1.5mm solid #cba65d; }
+    .id-card-head img { width: 16mm; height: 16mm; object-fit: contain; background: white; border: .5mm solid #cba65d; border-radius: 50%; }
+    .id-card-head div { flex: 1; line-height: 1; }
+    .id-card-head strong { display: block; color: white; font-size: 7.5mm; letter-spacing: .1mm; white-space: nowrap; }
+    .id-card-head strong em { color: #cba65d; font-style: normal; }
+    .id-card-head > div > span { display: block; color: #cba65d; font-size: 4.4mm; margin-top: 2mm; }
+    .id-card-main { display: flex; height: 57.6mm; }
+    .id-card-photo-column { width: 43mm; padding: 3mm 7mm 0; border-right: .3mm solid #9b9b9b; }
+    .id-card-photo { width: 34mm; height: 38mm; object-fit: cover; border: .7mm solid #071d38; border-radius: 4mm; display: block; }
+    .id-card-idno { width: 34mm; margin: 2mm -7mm 0; padding: 1.5mm 0; color: white; background: #061d37; text-align: center; font-size: 3.6mm; line-height: 1.25; }
+    .id-card-idno strong { display: block; color: #cba65d; font-size: 5mm; }
+    .id-card-barcode { display: block; width: 32mm; height: 9mm; margin: 1mm auto 0; background: white; }
+    .id-card-details { flex: 1; padding: 4mm 4mm 0; position: relative; }
+    .id-card-details::after { content: ''; position: absolute; inset: 4mm 3mm 0 42mm; background: url('muesa bg.png') center/contain no-repeat; opacity: .13; pointer-events: none; }
+    .id-card-details h2 { position: relative; z-index: 1; margin: 0 0 3mm; color: #061d37; font-size: 7mm; border-bottom: .3mm solid #777; padding-bottom: 1.5mm; }
+    .id-card-details h2 span, .id-card-details h2 small { display: block; }
+    .id-card-details h2 small { color: #a17e3d; font-size: 5.3mm; font-weight: normal; margin-top: 1mm; }
+    .id-card-detail { position: relative; z-index: 1; display: grid; grid-template-columns: 9mm 1fr; align-items: center; margin: 2mm 0; }
+    .id-card-detail-icon { width: 8mm; height: 8mm; display: grid; place-items: center; border-radius: 50%; background: #061d37; color: white; font-size: 5mm; font-weight: bold; }
+    .id-card-detail b, .id-card-detail span { display: block; }
+    .id-card-detail b { font-size: 3.7mm; line-height: 1; }
+    .id-card-detail span { font-size: 3.7mm; line-height: 1.1; margin-top: .7mm; }
+    .id-card-dates { position: absolute; z-index: 2; left: 18mm; right: 27mm; bottom: 2mm; display: grid; grid-template-columns: 1fr 1fr; text-align: center; }
+    .id-card-date + .id-card-date { border-left: .3mm solid #777; }
+    .id-card-date b, .id-card-date span { display: block; }
+    .id-card-date b { font-size: 3.6mm; }
+    .id-card-date span { font-size: 3.7mm; margin-top: 1mm; }
+    .id-card-qr { position: absolute; z-index: 3; right: 6mm; bottom: 2mm; width: 16mm; height: 16mm; padding: 1mm; background: white; border: .3mm solid #080f1b; border-radius: 2mm; }
+    .id-card-qr canvas, .id-card-qr img { width: 100%; height: 100%; display: block; }
+    .id-card-verify { position: absolute; z-index: 3; right: 5mm; bottom: 0; width: 18mm; padding: .8mm 0; background: #cba65d; border-radius: 1.5mm 1.5mm 0 0; text-align: center; font-size: 2.8mm; }
+    .id-card-foot { height: 0; }
     .pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 15px 20px; }
     .pagination-actions { display: flex; gap: 8px; }
     .empty { padding: 40px 20px; text-align: center; color: var(--muted); }
@@ -125,18 +144,26 @@
 
   <section class="id-card-print" id="idCardPrint" aria-hidden="true">
     <article class="id-card">
-      <header class="id-card-head"><img src="mru logo.png" alt="Mutesa I Royal University logo"><div><strong>MUTESA I ROYAL UNIVERSITY</strong><span>Education Students Association</span></div><img src="muesa bg.png" alt="MUESA association crest"></header>
-      <div class="id-card-body"><img id="cardPhoto" class="id-card-photo" alt="Student photo"><div class="id-card-details"><h2>STUDENT ID CARD</h2><p><b>Name</b><span id="cardName"></span></p><p><b>Student Number</b><span id="cardStudentNumber"></span></p><p><b>Class / Semester</b><span id="cardClass"></span></p><p><b>Year</b><span id="cardYear"></span></p></div></div>
-      <footer class="id-card-foot">MUESA • Official student identification</footer>
+      <header class="id-card-head"><img src="mru logo.png" alt="Mutesa I Royal University logo"><div><strong><em>MUTESA I</em> ROYAL UNIVERSITY</strong><span>Education Students Association</span></div><img src="muesa bg.png" alt="MUESA association crest"></header>
+      <div class="id-card-main">
+        <div class="id-card-photo-column"><img id="cardPhoto" class="id-card-photo" alt="Student photo"><div class="id-card-idno">ID NO:<strong id="cardIdNumber"></strong><svg id="cardBarcode" class="id-card-barcode" role="img" aria-label="Student barcode"></svg></div></div>
+        <div class="id-card-details"><h2><span id="cardName"></span><small>STUDENT ID CARD</small></h2><div class="id-card-detail"><span class="id-card-detail-icon">●</span><div><b>DEPARTMENT</b><span>Education Students Association</span></div></div><div class="id-card-detail"><span class="id-card-detail-icon">♀</span><div><b>GENDER</b><span id="cardGender"></span></div></div><div class="id-card-detail"><span class="id-card-detail-icon">▮</span><div><b>STUDENT NUMBER</b><span id="cardStudentNumber"></span></div></div><div class="id-card-dates"><div class="id-card-date"><b>ISSUE DATE</b><span>01/08/2026</span></div><div class="id-card-date"><b>EXPIRY DATE</b><span>01/01/2030</span></div></div><div id="cardQr" class="id-card-qr" aria-label="QR code containing student information"></div><div class="id-card-verify">SCAN TO VERIFY</div></div>
+      </div>
     </article>
   </section>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.6/JsBarcode.all.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
     const state = { students: [], photos: new Map(), files: [], mappings: new Map(), selected: new Set(), printed: new Map(), page: 1, pageSize: 20 };
     const $ = id => document.getElementById(id);
     const normalize = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const fileStem = name => name.replace(/\.[^.]+$/, '');
     const escapeHtml = value => String(value || '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
+    const issueDate = '01/08/2026';
+    const expiryDate = '01/01/2030';
+    function cardIdFor(student) { return `26/${String(student.id).padStart(3, '0')}`; }
+    function qrPayloadFor(student) { return JSON.stringify({ name: student.student_name || student.full_name || '', studentNumber: student.reg_no || '', idNumber: cardIdFor(student), department: 'Education Students Association', gender: student.gender || student.sex || 'FEMALE', issueDate, expiryDate }); }
 
     async function readImage(file) {
       return new Promise((resolve, reject) => {
@@ -255,8 +282,11 @@
         $('cardPhoto').src = photo.url || photo.photo_data;
         $('cardName').textContent = student.student_name || student.full_name;
         $('cardStudentNumber').textContent = student.reg_no;
-        $('cardClass').textContent = student.student_class || '-';
-        $('cardYear').textContent = student.year || '-';
+        $('cardGender').textContent = student.gender || student.sex || 'FEMALE';
+        $('cardIdNumber').textContent = cardIdFor(student);
+        if (window.JsBarcode) JsBarcode('#cardBarcode', student.reg_no || cardIdFor(student), { format: 'CODE128', lineColor: '#080f1b', width: 1.35, height: 29, displayValue: false, margin: 0 });
+        $('cardQr').innerHTML = '';
+        if (window.QRCode) new QRCode($('cardQr'), { text: qrPayloadFor(student), width: 110, height: 110, colorDark: '#080f1b', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
         $('idCardPrint').classList.add('is-printing');
         window.addEventListener('afterprint', () => $('idCardPrint').classList.remove('is-printing'), { once: true });
         window.print();
