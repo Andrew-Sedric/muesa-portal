@@ -158,14 +158,14 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.6/JsBarcode.all.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
-    const state = { students: [], photos: new Map(), files: [], mappings: new Map(), selected: new Set(), printed: new Map(), page: 1, pageSize: 20 };
+    const state = { students: [], cardNumbers: new Map(), photos: new Map(), files: [], mappings: new Map(), selected: new Set(), printed: new Map(), page: 1, pageSize: 20 };
     const $ = id => document.getElementById(id);
     const normalize = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const fileStem = name => name.replace(/\.[^.]+$/, '');
     const escapeHtml = value => String(value || '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
     const issueDate = '01/08/2026';
     const expiryDate = '01/01/2030';
-    function cardIdFor(student) { return `26/${String(student.id).padStart(3, '0')}`; }
+    function cardIdFor(student) { const sequence = state.cardNumbers.get(String(student.id)) || state.students.indexOf(student) + 1; return `26/${String(sequence).padStart(3, '0')}`; }
     function qrPayloadFor(student) { return JSON.stringify({ name: student.student_name || student.full_name || '', studentNumber: student.reg_no || '', idNumber: cardIdFor(student), department: 'Education Students Association', gender: student.gender || student.sex || 'FEMALE', issueDate, expiryDate }); }
 
     async function readImage(file) {
@@ -314,7 +314,7 @@
 
     async function printCard(studentId) { await printCards([studentId]); }
 
-    async function load() { try { const [studentsResponse, photosResponse] = await Promise.all([fetch('/api/index'), fetch('/api/index?action=photos')]); state.students = await studentsResponse.json(); const photos = await photosResponse.json(); photos.forEach(photo => { state.photos.set(String(photo.student_id), photo); state.photos.set(photo.reg_no, photo); if (photo.printed_at) state.printed.set(String(photo.student_id), new Date(photo.printed_at).toLocaleString()); }); render(); } catch (error) { $('emptyState').textContent = `Unable to load students: ${error.message}`; $('status').textContent = 'Connection error.'; } }
+    async function load() { try { const [studentsResponse, photosResponse] = await Promise.all([fetch('/api/index'), fetch('/api/index?action=photos')]); state.students = await studentsResponse.json(); state.cardNumbers.clear(); state.students.forEach((student, index) => state.cardNumbers.set(String(student.id), index + 1)); const photos = await photosResponse.json(); photos.forEach(photo => { state.photos.set(String(photo.student_id), photo); state.photos.set(photo.reg_no, photo); if (photo.printed_at) state.printed.set(String(photo.student_id), new Date(photo.printed_at).toLocaleString()); }); render(); } catch (error) { $('emptyState').textContent = `Unable to load students: ${error.message}`; $('status').textContent = 'Connection error.'; } }
     load();
   </script>
 </body>
