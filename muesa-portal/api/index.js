@@ -154,6 +154,21 @@ module.exports = async (req, res) => {
         return res.status(200).json({ success: true, printed_at: rows[0].printed_at });
       }
 
+      if (action === 'update_record') {
+        const { id, student_name, reg_no, email } = body;
+        if (!id || !student_name || !reg_no) {
+          return res.status(400).json({ error: 'Record ID, student name, and student number are required.' });
+        }
+        const [result] = await pool.query(
+          'UPDATE students SET student_name = ?, reg_no = ?, email = ? WHERE id = ?',
+          [student_name.trim(), reg_no.trim(), email ? email.trim() : null, id]
+        );
+        if (!result.affectedRows) {
+          return res.status(404).json({ error: 'Record not found.' });
+        }
+        return res.status(200).json({ success: true, message: 'Record updated successfully.' });
+      }
+
       const {
         student_name,
         reg_no,

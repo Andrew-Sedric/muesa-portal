@@ -115,6 +115,16 @@
       border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;
     }
     .btn-delete:hover { background-color: #bd2130; }
+    .btn-edit {
+      background-color: var(--royal-blue); color: white; border: none; padding: 6px 10px;
+      border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;
+    }
+    .btn-edit:hover { background-color: var(--primary-blue); }
+    .btn-cancel-edit {
+      display: none; background: transparent; color: var(--primary-blue); border: 1px solid var(--border-color);
+      padding: 10px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; margin-top: 20px;
+    }
+    .edit-notice { display: none; margin: -8px 0 18px; padding: 10px 12px; color: var(--primary-blue); background: #eaf4ff; border: 1px solid #b9d8f5; border-radius: 6px; font-size: 13px; }
 
     /* ROTATING SPINNER */
     .spinner {
@@ -197,6 +207,7 @@
     <!-- STUDENT PAYMENT FORM -->
     <div class="card">
       <h3>Record Student Payment</h3>
+      <div class="edit-notice" id="editNotice">Editing an existing record. Only Student Name, Student Number, and Email can be changed. Phone, Sem, Year, Type, Amount, Reg Date, and By remain unchanged.</div>
       <form id="studentForm">
         <div class="form-grid">
           
@@ -263,6 +274,7 @@
           <div class="spinner" id="submitSpinner"></div>
           <span id="submitBtnText">Submit Registration & Record Payment</span>
         </button>
+        <button type="button" class="btn-cancel-edit" id="cancelEditBtn">Cancel edit</button>
       </form>
     </div>
 
@@ -359,6 +371,8 @@
     let currentRole = null;
     let allRecords = [];
     let studentPhotos = new Map();
+    let editingRecordId = null;
+    const protectedEditFields = ['student_class', 'year', 'phone', 'payment_type', 'amount'];
 
     // TOGGLE CUSTOM NOTE INPUT FIELD
     function toggleCustomNoteField() {
@@ -428,9 +442,11 @@
       // Trigger Spinner Animation & Disable Button
       submitBtn.disabled = true;
       spinner.style.display = 'inline-block';
-      btnText.innerText = 'Recording Data...';
+      btnText.innerText = editingRecordId ? 'Saving Changes...' : 'Recording Data...';
 
       const payload = {
+        action: editingRecordId ? 'update_record' : undefined,
+        id: editingRecordId,
         student_name: document.getElementById('student_name').value,
         reg_no: document.getElementById('reg_no').value,
         student_class: document.getElementById('student_class').value,
@@ -452,6 +468,12 @@
         const data = await res.json();
         
         if (res.ok && data.success) {
+          if (editingRecordId) {
+            alert('Record updated successfully. Protected payment and registration fields were not changed.');
+            resetEditMode();
+            await loadRecords();
+            return;
+          }
           if (data.emailSent) {
             alert('Record saved & official email receipt sent successfully!');
           } else if (data.emailError) {
@@ -474,6 +496,41 @@
         btnText.innerText = 'Submit Registration & Record Payment';
       }
     });
+
+    function setEditMode(record) {
+      editingRecordId = record.id;
+      document.getElementById('student_name').value = record.student_name || record.full_name || '';
+      document.getElementById('reg_no').value = record.reg_no || '';
+      document.getElementById('email').value = record.email || '';
+      document.getElementById('student_class').value = record.student_class || '1 sem';
+      document.getElementById('year').value = record.year || 'Year 1';
+      document.getElementById('phone').value = record.phone || '';
+      document.getElementById('payment_type').value = record.payment_type || 'Subscription';
+      document.getElementById('amount').value = record.amount || '';
+      protectedEditFields.forEach(fieldId => { document.getElementById(fieldId).disabled = true; });
+      document.getElementById('editNotice').style.display = 'block';
+      document.getElementById('submitBtnText').innerText = 'Save Changes';
+      document.getElementById('cancelEditBtn').style.display = 'block';
+      document.getElementById('studentForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function resetEditMode() {
+      editingRecordId = null;
+      protectedEditFields.forEach(fieldId => { document.getElementById(fieldId).disabled = false; });
+      document.getElementById('studentForm').reset();
+      document.getElementById('editNotice').style.display = 'none';
+      document.getElementById('submitBtnText').innerText = 'Submit Registration & Record Payment';
+      document.getElementById('cancelEditBtn').style.display = 'none';
+      toggleCustomNoteField();
+    }
+
+    function editRecord(id) {
+      if (currentRole !== 'admin') return;
+      const record = allRecords.find(item => String(item.id) === String(id));
+      if (record) setEditMode(record);
+    }
+
+    document.getElementById('cancelEditBtn').addEventListener('click', resetEditMode);
 
     // FETCH RECORDS
     async function loadRecords() {
@@ -548,7 +605,7 @@
             <td data-print-field="amount">UGX ${Number(r.amount || 0).toLocaleString()}</td>
             <td data-print-field="regDate">${displayDate}</td>
             <td data-print-field="registeredBy">${r.registered_by || 'Admin'}</td>
-            <td class="no-print"><button class="btn-delete" onclick="deleteRecord(${r.id})">Delete</button></td>
+            <td class="no-print"><div style="display: grid; gap: 6px;"><button class="btn-edit" onclick="editRecord(${r.id})">Edit</button><button class="btn-delete" onclick="deleteRecord(${r.id})">Delete</button></div></td>
           </tr>
         `;
         tbody.innerHTML += row;
