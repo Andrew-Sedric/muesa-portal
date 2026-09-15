@@ -143,7 +143,7 @@ module.exports = async (req, res) => {
           SELECT students.*, photos.photo_data, photos.file_name, photos.photo_status, photos.updated_at AS photo_updated_at
           FROM students
           LEFT JOIN student_photos photos ON photos.student_id = students.id
-          WHERE students.reg_no = ? AND students.password = ?
+          WHERE LOWER(students.reg_no) = LOWER(?) AND students.password = ?
           LIMIT 1
         `, [body.reg_no.trim(), password]);
         if (!rows.length) return res.status(401).json({ error: 'Invalid student number or password.' });
@@ -160,7 +160,7 @@ module.exports = async (req, res) => {
           return res.status(400).json({ error: 'Upload a JPG, PNG, or WebP image.' });
         }
         await ensurePhotoTable();
-        const [students] = await pool.query('SELECT id, reg_no FROM students WHERE reg_no = ? AND password = ? LIMIT 1', [body.reg_no.trim(), body.password]);
+        const [students] = await pool.query('SELECT id, reg_no FROM students WHERE LOWER(reg_no) = LOWER(?) AND password = ? LIMIT 1', [body.reg_no.trim(), body.password]);
         if (!students.length) return res.status(401).json({ error: 'Student authentication failed.' });
         await pool.query(`
           INSERT INTO student_photos (student_id, reg_no, photo_data, file_name, photo_status)
@@ -188,7 +188,7 @@ module.exports = async (req, res) => {
           return res.status(400).json({ error: 'New password must be at least 3 characters.' });
         }
         const [result] = await pool.query(
-          'UPDATE students SET password = ? WHERE reg_no = ? AND password = ?',
+          'UPDATE students SET password = ? WHERE LOWER(reg_no) = LOWER(?) AND password = ?',
           [body.new_password, body.reg_no.trim(), body.current_password]
         );
         if (!result.affectedRows) return res.status(401).json({ error: 'Current password is incorrect.' });
@@ -200,7 +200,7 @@ module.exports = async (req, res) => {
           return res.status(400).json({ error: 'Student ID or registration number is required.' });
         }
         const [result] = await pool.query(
-          body.student_id ? 'UPDATE students SET password = ? WHERE id = ?' : 'UPDATE students SET password = ? WHERE reg_no = ?',
+          body.student_id ? 'UPDATE students SET password = ? WHERE id = ?' : 'UPDATE students SET password = ? WHERE LOWER(reg_no) = LOWER(?)',
           ['123', body.student_id || body.reg_no]
         );
         if (!result.affectedRows) return res.status(404).json({ error: 'Student not found.' });
