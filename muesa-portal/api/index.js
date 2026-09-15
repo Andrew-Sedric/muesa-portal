@@ -365,7 +365,7 @@ module.exports = async (req, res) => {
               html: `
                 <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; border: 1px solid #e0e0e0; border-radius: 8px;">
                   <h2 style="color: #006633; margin-top: 0;">MUESA Official Receipt</h2>
-                  <p>Mutesa I Royal University Education Students Association</p>
+                  <p>Muteesa I Royal University Education Students Association</p>
                   <hr style="border: 0; border-top: 1px solid #eee;" />
                   <p>Dear <strong>${student_name}</strong>,</p>
                   <p>Your payment has been successfully recorded on the MUESA Portal.</p>
