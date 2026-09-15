@@ -125,6 +125,7 @@
       <input id="photoFiles" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
       <button class="btn btn-secondary" id="confirmBtn" disabled>Confirm selected matches</button>
       <button class="btn btn-quiet" id="printBtn" disabled>Print selected cards</button>
+      <button class="btn btn-primary" id="zipBtn" disabled>Download PDF ZIP</button>
       <button class="btn btn-danger" id="clearBtn">Clear pending files</button>
       <div class="status muted" id="status">No pending files.</div>
     </section>
@@ -136,7 +137,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th class="no-print"><input id="selectAll" type="checkbox" aria-label="Select all visible rows"></th><th>Picture</th><th>Student</th><th>Student number</th><th>Existing photo</th><th>Pending file mapping</th><th>Card status</th><th class="no-print">Export</th></tr></thead>
+          <thead><tr><th class="no-print"><input id="selectAll" type="checkbox" aria-label="Select all visible rows"></th><th>Picture</th><th>Student</th><th>Student number</th><th>Existing photo</th><th>Pending file mapping</th><th>Card status</th><th class="no-print">Actions</th></tr></thead>
           <tbody id="studentRows"></tbody>
         </table>
         <div class="empty" id="emptyState">Loading registered students...</div>
@@ -157,6 +158,9 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.6/JsBarcode.all.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script>
     const state = { students: [], cardNumbers: new Map(), photos: new Map(), files: [], mappings: new Map(), selected: new Set(), printed: new Map(), page: 1, pageSize: 20 };
     const $ = id => document.getElementById(id);
@@ -213,7 +217,7 @@
         const printButton = missing.length ? `<button class="btn btn-quiet" disabled>Cannot print</button>` : `<button class="btn btn-primary print-card" data-id="${escapeHtml(id)}">${state.printed.get(id) ? 'Print again' : 'Print card'}</button>`;
         const fileOptions = ['<option value="">No pending file</option>'].concat(state.files.map(file => `<option value="${escapeHtml(file.key)}" ${state.mappings.get(file.key) === id ? 'selected' : ''}>${escapeHtml(file.name)}</option>`)).join('');
         const image = pending ? `<img class="student-photo" src="${pending.url}" alt="Pending ${escapeHtml(student.student_name)}">` : existing ? `<img class="student-photo" src="${existing.photo_data}" alt="Existing ${escapeHtml(student.student_name)}">` : '<span class="muted">None</span>';
-        rows.insertAdjacentHTML('beforeend', `<tr class="${checked ? 'is-selected' : ''}"><td class="no-print"><input class="row-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''}></td><td>${image}</td><td class="student">${escapeHtml(student.student_name || student.full_name || '-')}</td><td>${escapeHtml(student.reg_no || '-')}</td><td>${existing ? '<span class="muted">Confirmed</span>' : '<span class="muted">Not assigned</span>'}</td><td><div class="match ${pending ? '' : 'unmatched'}">${pending ? `<img src="${pending.url}" alt="">` : '<span>—</span>'}<div><select class="mapping" data-student="${escapeHtml(id)}">${fileOptions}</select><small>${pending ? escapeHtml(pending.name) : 'Filename match not found; choose manually.'}</small></div></div></td><td>${status}</td><td class="no-print"><div style="display:grid;gap:6px">${printButton}<input class="export-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''} aria-label="Include ${escapeHtml(student.student_name)} in PDF"></div></td></tr>`);
+        rows.insertAdjacentHTML('beforeend', `<tr class="${checked ? 'is-selected' : ''}"><td class="no-print"><input class="row-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''}></td><td>${image}</td><td class="student">${escapeHtml(student.student_name || student.full_name || '-')}</td><td>${escapeHtml(student.reg_no || '-')}</td><td>${existing ? '<span class="muted">Confirmed</span>' : '<span class="muted">Not assigned</span>'}</td><td><div class="match ${pending ? '' : 'unmatched'}">${pending ? `<img src="${pending.url}" alt="">` : '<span>—</span>'}<div><select class="mapping" data-student="${escapeHtml(id)}">${fileOptions}</select><small>${pending ? escapeHtml(pending.name) : 'Filename match not found; choose manually.'}</small></div></div></td><td>${status}</td><td class="no-print"><div style="display:grid;gap:6px">${printButton}<button class="btn btn-danger reset-password" data-id="${escapeHtml(id)}">Reset password</button><input class="export-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''} aria-label="Include ${escapeHtml(student.student_name)} in PDF"></div></td></tr>`);
       });
       const totalPages = Math.max(1, Math.ceil(state.students.length / state.pageSize));
       $('pageInfo').textContent = `Page ${state.page} of ${totalPages}`;
@@ -223,6 +227,7 @@
       $('selectedCount').textContent = `${state.selected.size} selected`;
       $('confirmBtn').disabled = !Array.from(state.mappings.values()).some(Boolean);
       $('printBtn').disabled = state.selected.size === 0;
+      $('zipBtn').disabled = state.selected.size === 0;
     }
 
     function assign(fileKey, studentId) {
@@ -245,7 +250,10 @@
       if (event.target.classList.contains('mapping')) assign(event.target.value, event.target.dataset.student);
       if (event.target.classList.contains('row-check') || event.target.classList.contains('export-check')) { const id = event.target.dataset.id; event.target.checked ? state.selected.add(id) : state.selected.delete(id); render(); }
     });
-    $('studentRows').addEventListener('click', event => { if (event.target.classList.contains('print-card')) printCard(event.target.dataset.id); });
+    $('studentRows').addEventListener('click', event => {
+      if (event.target.classList.contains('print-card')) printCard(event.target.dataset.id);
+      if (event.target.classList.contains('reset-password')) resetPassword(event.target.dataset.id);
+    });
     $('selectAll').addEventListener('change', event => { pageStudents().forEach(student => event.target.checked ? state.selected.add(String(student.id)) : state.selected.delete(String(student.id))); render(); });
     $('prevBtn').addEventListener('click', () => { state.page--; render(); }); $('nextBtn').addEventListener('click', () => { state.page++; render(); });
     $('clearBtn').addEventListener('click', () => { state.files = []; state.mappings.clear(); $('status').textContent = 'Pending files cleared. Nothing was saved.'; render(); });
@@ -271,6 +279,18 @@
     });
 
     $('printBtn').addEventListener('click', () => printCards(Array.from(state.selected)));
+    $('zipBtn').addEventListener('click', () => exportPdfZip(Array.from(state.selected)));
+
+    async function resetPassword(studentId) {
+      const student = state.students.find(item => String(item.id) === String(studentId));
+      if (!student || !confirm(`Reset ${student.student_name || student.reg_no}'s password to 123?`)) return;
+      try {
+        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'admin_reset_password', student_id: student.id }) });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to reset password.');
+        alert('Password reset to 123.');
+      } catch (error) { alert(error.message); }
+    }
 
     async function markPrinted(student) {
       const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'mark_card_printed', student_id: student.id }) });
@@ -313,6 +333,39 @@
     }
 
     async function printCard(studentId) { await printCards([studentId]); }
+
+    async function exportPdfZip(studentIds) {
+      const students = studentIds.map(id => state.students.find(item => String(item.id) === String(id))).filter(Boolean);
+      const printable = students.map(student => ({ student, photo: pendingForStudent(student.id) || photoFor(student) })).filter(item => !cardMissing(item.student, item.photo).length);
+      if (!printable.length) { alert('Select at least one student with a name, student number, and photo.'); return; }
+      if (printable.length !== students.length) alert('Some selected students are incomplete and were skipped.');
+      const zip = new JSZip();
+      const printArea = $('idCardPrint');
+      const template = printArea.querySelector('.id-card');
+      const previousDisplay = printArea.style.display;
+      printArea.style.display = 'block';
+      printArea.style.position = 'fixed';
+      printArea.style.left = '-10000px';
+      try {
+        for (const item of printable) {
+          const card = buildPrintCard(item.student, item.photo, template);
+          printArea.innerHTML = '';
+          printArea.appendChild(card);
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          const canvas = await html2canvas(card, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+          const pdf = new jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: [131.2, 81.6] });
+          pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 131.2, 81.6);
+          zip.file(`${item.student.reg_no || item.student.id}.pdf`, pdf.output('blob'));
+        }
+        const archive = await zip.generateAsync({ type: 'blob' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(archive);
+        link.download = `muesa-student-id-cards-${new Date().toISOString().slice(0, 10)}.zip`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      } catch (error) { alert(`PDF export failed: ${error.message}`); }
+      finally { printArea.style.display = previousDisplay; printArea.style.position = ''; printArea.style.left = ''; printArea.innerHTML = ''; printArea.appendChild(template); }
+    }
 
     async function load() { try { const [studentsResponse, photosResponse] = await Promise.all([fetch('/api/index'), fetch('/api/index?action=photos')]); state.students = await studentsResponse.json(); state.cardNumbers.clear(); state.students.forEach((student, index) => state.cardNumbers.set(String(student.id), index + 1)); const photos = await photosResponse.json(); photos.forEach(photo => { state.photos.set(String(photo.student_id), photo); state.photos.set(photo.reg_no, photo); if (photo.printed_at) state.printed.set(String(photo.student_id), new Date(photo.printed_at).toLocaleString()); }); render(); } catch (error) { $('emptyState').textContent = `Unable to load students: ${error.message}`; $('status').textContent = 'Connection error.'; } }
     load();

@@ -13,6 +13,41 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
+let passwordMigration;
+async function ensurePasswordColumn() {
+  if (!passwordMigration) {
+    passwordMigration = (async () => {
+      const [columns] = await pool.query(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'students' AND COLUMN_NAME = 'password'
+      `);
+      if (!columns.length) {
+        try {
+          await pool.query("ALTER TABLE students ADD COLUMN password VARCHAR(255) NOT NULL DEFAULT '123'");
+        } catch (error) {
+          if (error.code !== 'ER_DUP_FIELDNAME' && error.errno !== 1060) throw error;
+        }
+      }
+    })();
+  }
+  return passwordMigration;
+}
+
+async function ensurePhotoTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS student_photos (
+      student_id BIGINT NOT NULL,
+      reg_no VARCHAR(100) NOT NULL,
+      photo_data LONGTEXT NOT NULL,
+      file_name VARCHAR(255) NOT NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (student_id),
+      UNIQUE KEY unique_student_photo_reg_no (reg_no)
+    )
+  `);
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
@@ -20,6 +55,13 @@ module.exports = async (req, res) => {
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  try {
+    await ensurePasswordColumn();
+  } catch (error) {
+    console.error('Student password migration error:', error);
+    return res.status(500).json({ error: 'Unable to prepare student accounts.' });
   }
 
   // GET: Fetch records
@@ -50,7 +92,7 @@ module.exports = async (req, res) => {
     try {
       // Selects all columns including created_at timestamp
       const [rows] = await pool.query('SELECT *, DATE(created_at) as reg_date FROM students ORDER BY id DESC');
-      return res.status(200).json(rows);
+      return res.status(200).json(rows.map(({ password, ...student }) => student));
     } catch (error) {
       console.error('Fetch error:', error);
       return res.status(500).json({ error: error.message });
@@ -77,6 +119,50 @@ module.exports = async (req, res) => {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
       const { action, username, password } = body;
+
+      if (action === 'student_login') {
+        if (!body.reg_no || !password) {
+          return res.status(400).json({ error: 'Registration number and password are required.' });
+        }
+        await ensurePhotoTable();
+        const [rows] = await pool.query(`
+          SELECT students.*, photos.photo_data, photos.file_name, photos.updated_at AS photo_updated_at
+          FROM students
+          LEFT JOIN student_photos photos ON photos.student_id = students.id
+          WHERE students.reg_no = ? AND students.password = ?
+          LIMIT 1
+        `, [body.reg_no.trim(), password]);
+        if (!rows.length) return res.status(401).json({ error: 'Invalid student number or password.' });
+        const { password: ignoredPassword, ...student } = rows[0];
+        return res.status(200).json({ success: true, student });
+      }
+
+      if (action === 'change_password') {
+        if (!body.reg_no || !body.current_password || !body.new_password) {
+          return res.status(400).json({ error: 'Registration number, current password, and new password are required.' });
+        }
+        if (String(body.new_password).length < 3) {
+          return res.status(400).json({ error: 'New password must be at least 3 characters.' });
+        }
+        const [result] = await pool.query(
+          'UPDATE students SET password = ? WHERE reg_no = ? AND password = ?',
+          [body.new_password, body.reg_no.trim(), body.current_password]
+        );
+        if (!result.affectedRows) return res.status(401).json({ error: 'Current password is incorrect.' });
+        return res.status(200).json({ success: true, message: 'Password updated successfully.' });
+      }
+
+      if (action === 'admin_reset_password') {
+        if (!body.student_id && !body.reg_no) {
+          return res.status(400).json({ error: 'Student ID or registration number is required.' });
+        }
+        const [result] = await pool.query(
+          body.student_id ? 'UPDATE students SET password = ? WHERE id = ?' : 'UPDATE students SET password = ? WHERE reg_no = ?',
+          ['123', body.student_id || body.reg_no]
+        );
+        if (!result.affectedRows) return res.status(404).json({ error: 'Student not found.' });
+        return res.status(200).json({ success: true, message: 'Student password reset to 123.' });
+      }
 
       // Authentication handling
       if (action === 'login' || (username !== undefined && password !== undefined)) {
