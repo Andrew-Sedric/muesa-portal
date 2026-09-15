@@ -18,8 +18,9 @@
     .login { max-width: 450px; margin: 10vh auto 0; padding: 34px; } .login-logo { display: block; width: 92px; height: 92px; object-fit: contain; margin: 0 auto 14px; } .login h1 { text-align: center; font-size: 28px; } .login .muted { text-align: center; }
     .form { display: grid; gap: 14px; } label { display: grid; gap: 6px; color: var(--navy); font-size: 13px; font-weight: 800; } input { width: 100%; padding: 12px 13px; border: 1px solid var(--line); border-radius: 5px; font: inherit; } input:focus { outline: 3px solid rgba(0,140,149,.15); border-color: var(--teal); } .form .btn { width: 100%; margin-top: 5px; }
     .message { min-height: 20px; margin: 12px 0 0; color: #ad3e29; font-size: 13px; } .message.success { color: #177245; }
+    .photo-empty { display: grid; place-items: center; width: 180px; height: 220px; border: 1px dashed var(--line); border-radius: 6px; color: var(--muted); font-weight: 800; } .photo-status { display: inline-block; margin-top: 9px; padding: 6px 9px; border-radius: 999px; background: #fff8e9; color: #76531b; font-size: 12px; font-weight: 800; } .photo-status.approved { background: #eaf8ef; color: #177245; } .photo-status.rejected { background: #fff0ec; color: #ad3e29; }
     #profileView { display: none; } .profile-grid { display: grid; grid-template-columns: 220px 1fr; gap: 26px; padding: 26px; } .profile-photo { width: 180px; height: 220px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); background: #e8eeee; } .details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-content: start; } .detail { border-bottom: 1px solid var(--line); padding-bottom: 10px; } .detail b { display: block; color: var(--muted); font-size: 11px; letter-spacing: .6px; text-transform: uppercase; margin-bottom: 4px; } .detail span { font-size: 16px; font-weight: 800; }
-    .password-panel { margin-top: 20px; padding: 24px; } .password-panel form { max-width: 460px; } .top-actions { display: flex; gap: 8px; align-items: center; }
+    .password-panel, .edit-panel, .id-preview-panel { margin-top: 20px; padding: 24px; } .password-panel form, .edit-panel form { max-width: 460px; } .top-actions { display: flex; gap: 8px; align-items: center; } .id-preview-panel { user-select: none; } .id-preview { display: flex; width: min(100%, 760px); aspect-ratio: 131.2 / 81.6; overflow: hidden; border: 2px solid #061d37; border-radius: 14px; background: linear-gradient(135deg, #fff 0%, #fff 62%, #eefbff 100%); color: #061d37; pointer-events: none; } .id-preview-photo-wrap { width: 31%; padding: 5%; border-right: 1px solid #00a6e8; } .id-preview-photo { width: 100%; aspect-ratio: 34 / 35; object-fit: cover; border: 2px solid #061d37; border-radius: 12px; background: #e8eeee; } .id-preview-photo.empty { display: grid; place-items: center; color: var(--muted); font-size: 12px; text-align: center; } .id-preview-info { flex: 1; padding: 5% 4%; } .id-preview-info h2 { margin: 0 0 3%; color: #001ed2; border-bottom: 1px solid #00a6e8; padding-bottom: 2%; } .id-preview-info p { margin: 3% 0; font-size: clamp(11px, 2vw, 17px); } .id-preview-info b { color: #e21c11; }
     @media (max-width: 650px) { .shell { width: min(100% - 20px, 980px); padding-top: 12px; } .topbar { align-items: flex-start; flex-direction: column; } .top-actions { width: 100%; } .top-actions .btn { flex: 1; text-align: center; } .profile-grid { grid-template-columns: 1fr; padding: 20px; } .profile-photo { width: 150px; height: 185px; } .details { grid-template-columns: 1fr; } .login { margin-top: 5vh; padding: 24px; } }
   </style>
 </head>
@@ -43,9 +44,11 @@
         <div class="top-actions"><a class="btn btn-quiet" href="index.html">Main portal</a><button class="btn btn-primary" id="logoutBtn">Sign out</button></div>
       </header>
       <section class="panel profile-grid">
-        <div><img class="profile-photo" id="profilePhoto" alt="Student profile photo"></div>
+        <div><div id="profilePhotoBox" class="photo-empty">No Picture</div><div id="photoStatus" class="photo-status">No Picture</div></div>
         <div><h1 id="profileName"></h1><p class="muted">Your registered student information</p><div class="details"><div class="detail"><b>Registration number</b><span id="profileRegNo"></span></div><div class="detail"><b>Class / Semester</b><span id="profileClass"></span></div><div class="detail"><b>Year</b><span id="profileYear"></span></div><div class="detail"><b>Payment type</b><span id="profilePayment"></span></div></div></div>
       </section>
+      <section class="panel edit-panel"><h2>Edit profile</h2><p class="muted">Only your full name and profile photo can be changed.</p><form class="form" id="profileForm"><label>Full name<input id="profileNameInput" required maxlength="150"></label><button class="btn btn-primary" type="submit">Save name</button></form><form class="form" id="photoForm" style="margin-top:14px"><label>Profile photo<input id="photoInput" type="file" accept="image/jpeg,image/png,image/webp" required></label><button class="btn btn-primary" type="submit">Submit photo for approval</button></form><p class="message" id="profileMessage" role="alert"></p></section>
+      <section class="panel id-preview-panel" oncontextmenu="return false"><h2>My ID Card Preview</h2><p class="muted">This preview is for viewing only. Your card becomes available after photo approval.</p><div class="id-preview" id="idPreview"><div class="id-preview-photo-wrap"><div id="previewPhoto" class="id-preview-photo empty">No Picture</div></div><div class="id-preview-info"><h2 id="previewName"></h2><p><b>REGISTRATION:</b> <span id="previewRegNo"></span></p><p><b>CLASS / SEMESTER:</b> <span id="previewClass"></span></p><p><b>YEAR:</b> <span id="previewYear"></span></p><p><b>PHOTO STATUS:</b> <span id="previewStatus"></span></p></div></div></section>
       <section class="panel password-panel"><h2>Change password</h2><p class="muted">Use a password you do not share with anyone else.</p><form class="form" id="passwordForm"><label>Current password<input id="currentPassword" type="password" required autocomplete="current-password"></label><label>New password<input id="newPassword" type="password" required minlength="3" autocomplete="new-password"></label><label>Confirm new password<input id="confirmPassword" type="password" required minlength="3" autocomplete="new-password"></label><button class="btn btn-primary" type="submit">Update password</button></form><p class="message" id="passwordMessage" role="alert"></p></section>
     </section>
   </main>
@@ -53,20 +56,39 @@
     const $ = id => document.getElementById(id);
     let student = null;
     const setMessage = (element, text, success = false) => { element.textContent = text; element.className = `message${success ? ' success' : ''}`; };
+    function renderPhoto(photoData) {
+      const box = $('profilePhotoBox');
+      box.innerHTML = '';
+      if (photoData) { const image = document.createElement('img'); image.className = 'profile-photo'; image.src = photoData; image.alt = 'Student profile photo'; box.appendChild(image); } else { box.className = 'photo-empty'; box.textContent = 'No Picture'; }
+      const status = student.photo_status || (photoData ? 'Pending' : 'No Picture');
+      $('photoStatus').textContent = status === 'Pending' ? 'Pending Approval' : status === 'Rejected' ? 'Rejected - upload a new compliant photo' : status;
+      $('photoStatus').className = `photo-status ${status.toLowerCase()}`;
+      const preview = $('previewPhoto'); preview.innerHTML = ''; preview.className = 'id-preview-photo' + (photoData ? '' : ' empty');
+      if (photoData) { const image = document.createElement('img'); image.src = photoData; image.alt = 'ID preview photo'; image.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:10px'; preview.appendChild(image); } else preview.textContent = 'No Picture';
+    }
     function showProfile(data) {
       student = data;
       $('loginView').style.display = 'none'; $('profileView').style.display = 'block';
-      $('profileName').textContent = student.student_name || student.full_name || '-';
+      $('profileName').textContent = student.student_name || student.full_name || '-'; $('profileNameInput').value = student.student_name || student.full_name || '';
       $('profileRegNo').textContent = student.reg_no || '-'; $('profileClass').textContent = student.student_class || '-'; $('profileYear').textContent = student.year || '-'; $('profilePayment').textContent = student.payment_type || '-';
-      $('profilePhoto').src = student.photo_data || 'muesa bg.png'; $('profilePhoto').alt = `Photo of ${student.student_name || 'student'}`;
+      $('previewName').textContent = student.student_name || student.full_name || '-'; $('previewRegNo').textContent = student.reg_no || '-'; $('previewClass').textContent = student.student_class || '-'; $('previewYear').textContent = student.year || '-'; $('previewStatus').textContent = student.photo_status || 'No Picture'; renderPhoto(student.photo_data);
     }
     $('loginForm').addEventListener('submit', async event => {
       event.preventDefault(); setMessage($('loginMessage'), 'Signing in...');
       try {
         const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'student_login', reg_no: $('loginRegNo').value, password: $('loginPassword').value }) });
         const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Unable to sign in.');
-        showProfile(data.student); $('currentPassword').value = $('loginPassword').value; $('loginForm').reset();
+        sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student: data.student, password: $('loginPassword').value })); showProfile(data.student); $('currentPassword').value = $('loginPassword').value; $('loginForm').reset();
       } catch (error) { setMessage($('loginMessage'), error.message); }
+    });
+    function sessionPassword() { const session = JSON.parse(sessionStorage.getItem('muesaStudentSession') || '{}'); return session.password || $('currentPassword').value; }
+    $('profileForm').addEventListener('submit', async event => {
+      event.preventDefault();
+      try { const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'student_update_profile', reg_no: student.reg_no, password: sessionPassword(), student_name: $('profileNameInput').value }) }); const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Unable to update name.'); student.student_name = $('profileNameInput').value.trim(); sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student, password: sessionPassword() })); showProfile(student); setMessage($('profileMessage'), data.message, true); } catch (error) { setMessage($('profileMessage'), error.message); }
+    });
+    $('photoForm').addEventListener('submit', async event => {
+      event.preventDefault(); const file = $('photoInput').files[0]; if (!file) return;
+      try { const photoData = await readImage(file); const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'student_upload_photo', reg_no: student.reg_no, password: sessionPassword(), photo_data: photoData, file_name: file.name }) }); const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Unable to submit photo.'); student.photo_data = photoData; student.photo_status = data.photo_status; sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student, password: sessionPassword() })); $('photoInput').value = ''; showProfile(student); setMessage($('profileMessage'), data.message, true); } catch (error) { setMessage($('profileMessage'), error.message); }
     });
     $('passwordForm').addEventListener('submit', async event => {
       event.preventDefault();
@@ -74,10 +96,13 @@
       try {
         const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'change_password', reg_no: student.reg_no, current_password: $('currentPassword').value, new_password: $('newPassword').value }) });
         const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Unable to update password.');
-        $('currentPassword').value = $('newPassword').value; $('newPassword').value = ''; $('confirmPassword').value = ''; setMessage($('passwordMessage'), data.message, true);
+        $('currentPassword').value = $('newPassword').value; sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student, password: $('newPassword').value })); $('newPassword').value = ''; $('confirmPassword').value = ''; setMessage($('passwordMessage'), data.message, true);
       } catch (error) { setMessage($('passwordMessage'), error.message); }
     });
-    $('logoutBtn').addEventListener('click', () => { student = null; $('profileView').style.display = 'none'; $('loginView').style.display = 'block'; $('loginPassword').value = '123'; setMessage($('loginMessage'), ''); });
+    function readImage(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => { const image = new Image(); image.onload = () => { const scale = Math.min(1, 600 / image.naturalWidth, 800 / image.naturalHeight); const canvas = document.createElement('canvas'); canvas.width = Math.max(1, image.naturalWidth * scale); canvas.height = Math.max(1, image.naturalHeight * scale); canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height); resolve(canvas.toDataURL('image/jpeg', .8)); }; image.onerror = reject; image.src = reader.result; }; reader.onerror = reject; reader.readAsDataURL(file); }); }
+    $('logoutBtn').addEventListener('click', () => { sessionStorage.removeItem('muesaStudentSession'); student = null; $('profileView').style.display = 'none'; $('loginView').style.display = 'block'; $('loginPassword').value = '123'; setMessage($('loginMessage'), ''); });
+    document.addEventListener('contextmenu', event => { if (event.target.closest('#profileView')) event.preventDefault(); });
+    const savedSession = JSON.parse(sessionStorage.getItem('muesaStudentSession') || 'null'); if (savedSession && savedSession.student && savedSession.password) { showProfile(savedSession.student); $('currentPassword').value = savedSession.password; }
   </script>
 </body>
 </html>

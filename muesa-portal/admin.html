@@ -90,6 +90,12 @@
     .pagination-actions { display: flex; gap: 8px; }
     .empty { padding: 40px 20px; text-align: center; color: var(--muted); }
     .notice { padding: 12px 16px; border-radius: 5px; background: #fff8e9; color: #76531b; border: 1px solid #f0d99b; font-size: 13px; margin-bottom: 18px; }
+    .photo-review { margin-bottom: 18px; }
+    .photo-review-list { display: grid; gap: 10px; }
+    .photo-review-item { display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 5px; background: #fffdf7; }
+    .photo-review-item img { width: 48px; height: 58px; object-fit: cover; border-radius: 4px; }
+    .photo-review-item .review-details { flex: 1; }
+    .photo-review-item .review-actions { display: flex; gap: 6px; }
     @media (max-width: 700px) { .shell { padding: 14px; } .topbar, .panel-head { align-items: stretch; flex-direction: column; } .toolbar { align-items: stretch; } .toolbar .btn, .toolbar .file-label { width: 100%; } }
     @media print {
       @page { size: A4 landscape; margin: 10mm; }
@@ -120,6 +126,7 @@
     </header>
 
     <div class="notice">Nothing is saved while files are selected or remapped. Existing student text records are never updated; confirmation writes only the separate photo mapping table.</div>
+    <section class="panel photo-review no-print" id="photoReview" style="display:none"><div class="panel-head"><div><h2>Pending photo submissions</h2><p class="muted">Review student-uploaded pictures before they appear as approved profile photos.</p></div></div><div class="photo-review-list" id="photoReviewList"></div></section>
     <section class="toolbar no-print">
       <label class="file-label" for="photoFiles">＋ Choose photos</label>
       <input id="photoFiles" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
@@ -216,7 +223,7 @@
         const status = missing.length ? `<span class="card-status">Missing ${escapeHtml(missing.join(', '))}</span>` : state.printed.get(id) ? `<span class="card-status printed">Printed ${escapeHtml(state.printed.get(id))}</span>` : '<span class="card-status ready">Ready to print</span>';
         const printButton = missing.length ? `<button class="btn btn-quiet" disabled>Cannot print</button>` : `<button class="btn btn-primary print-card" data-id="${escapeHtml(id)}">${state.printed.get(id) ? 'Print again' : 'Print card'}</button>`;
         const fileOptions = ['<option value="">No pending file</option>'].concat(state.files.map(file => `<option value="${escapeHtml(file.key)}" ${state.mappings.get(file.key) === id ? 'selected' : ''}>${escapeHtml(file.name)}</option>`)).join('');
-        const image = pending ? `<img class="student-photo" src="${pending.url}" alt="Pending ${escapeHtml(student.student_name)}">` : existing ? `<img class="student-photo" src="${existing.photo_data}" alt="Existing ${escapeHtml(student.student_name)}">` : '<span class="muted">None</span>';
+        const image = pending ? `<img class="student-photo" src="${pending.url}" alt="Pending ${escapeHtml(student.student_name)}">` : existing ? `<img class="student-photo" src="${existing.photo_data}" alt="Existing ${escapeHtml(student.student_name)}">` : '<span class="muted">No Picture</span>';
         rows.insertAdjacentHTML('beforeend', `<tr class="${checked ? 'is-selected' : ''}"><td class="no-print"><input class="row-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''}></td><td>${image}</td><td class="student">${escapeHtml(student.student_name || student.full_name || '-')}</td><td>${escapeHtml(student.reg_no || '-')}</td><td>${existing ? '<span class="muted">Confirmed</span>' : '<span class="muted">Not assigned</span>'}</td><td><div class="match ${pending ? '' : 'unmatched'}">${pending ? `<img src="${pending.url}" alt="">` : '<span>—</span>'}<div><select class="mapping" data-student="${escapeHtml(id)}">${fileOptions}</select><small>${pending ? escapeHtml(pending.name) : 'Filename match not found; choose manually.'}</small></div></div></td><td>${status}</td><td class="no-print"><div style="display:grid;gap:6px">${printButton}<button class="btn btn-danger reset-password" data-id="${escapeHtml(id)}">Reset password</button><input class="export-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''} aria-label="Include ${escapeHtml(student.student_name)} in PDF"></div></td></tr>`);
       });
       const totalPages = Math.max(1, Math.ceil(state.students.length / state.pageSize));
@@ -367,7 +374,19 @@
       finally { printArea.style.display = previousDisplay; printArea.style.position = ''; printArea.style.left = ''; printArea.innerHTML = ''; printArea.appendChild(template); }
     }
 
-    async function load() { try { const [studentsResponse, photosResponse] = await Promise.all([fetch('/api/index'), fetch('/api/index?action=photos')]); state.students = await studentsResponse.json(); state.cardNumbers.clear(); state.students.forEach((student, index) => state.cardNumbers.set(String(student.id), index + 1)); const photos = await photosResponse.json(); photos.forEach(photo => { state.photos.set(String(photo.student_id), photo); state.photos.set(photo.reg_no, photo); if (photo.printed_at) state.printed.set(String(photo.student_id), new Date(photo.printed_at).toLocaleString()); }); render(); } catch (error) { $('emptyState').textContent = `Unable to load students: ${error.message}`; $('status').textContent = 'Connection error.'; } }
+    async function reviewPhoto(studentId, photoStatus) {
+      try {
+        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'admin_photo_review', student_id: studentId, photo_status: photoStatus }) });
+        const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Unable to update photo status.');
+        await load();
+      } catch (error) { alert(error.message); }
+    }
+    function renderPhotoReview() {
+      const pending = Array.from(state.photos.values()).filter((photo, index, photos) => photo.photo_status === 'Pending' && photos.findIndex(item => String(item.student_id) === String(photo.student_id)) === index);
+      $('photoReview').style.display = pending.length ? 'block' : 'none';
+      $('photoReviewList').innerHTML = pending.map(photo => { const student = state.students.find(item => String(item.id) === String(photo.student_id)); return `<div class="photo-review-item"><img src="${photo.photo_data}" alt=""><div class="review-details"><strong>${escapeHtml(student?.student_name || photo.reg_no)}</strong><div class="muted">${escapeHtml(photo.reg_no)} · Pending Approval</div></div><div class="review-actions"><button class="btn btn-primary" onclick="reviewPhoto(${photo.student_id}, 'Approved')">Approve</button><button class="btn btn-danger" onclick="reviewPhoto(${photo.student_id}, 'Rejected')">Reject</button></div></div>`; }).join('');
+    }
+    async function load() { try { const [studentsResponse, photosResponse] = await Promise.all([fetch('/api/index'), fetch('/api/index?action=photos')]); state.students = await studentsResponse.json(); state.cardNumbers.clear(); state.students.forEach((student, index) => state.cardNumbers.set(String(student.id), index + 1)); const photos = await photosResponse.json(); state.photos.clear(); photos.forEach(photo => { state.photos.set(String(photo.student_id), photo); state.photos.set(photo.reg_no, photo); if (photo.printed_at) state.printed.set(String(photo.student_id), new Date(photo.printed_at).toLocaleString()); }); renderPhotoReview(); render(); } catch (error) { $('emptyState').textContent = `Unable to load students: ${error.message}`; $('status').textContent = 'Connection error.'; } }
     load();
   </script>
 </body>

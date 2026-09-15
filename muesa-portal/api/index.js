@@ -41,11 +41,24 @@ async function ensurePhotoTable() {
       reg_no VARCHAR(100) NOT NULL,
       photo_data LONGTEXT NOT NULL,
       file_name VARCHAR(255) NOT NULL,
+      photo_status VARCHAR(20) NOT NULL DEFAULT 'No Picture',
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (student_id),
       UNIQUE KEY unique_student_photo_reg_no (reg_no)
     )
   `);
+  const [columns] = await pool.query(`
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'student_photos' AND COLUMN_NAME = 'photo_status'
+  `);
+  if (!columns.length) {
+    try {
+      await pool.query("ALTER TABLE student_photos ADD COLUMN photo_status VARCHAR(20) NOT NULL DEFAULT 'No Picture'");
+    } catch (error) {
+      if (error.code !== 'ER_DUP_FIELDNAME' && error.errno !== 1060) throw error;
+    }
+  }
 }
 
 module.exports = async (req, res) => {
@@ -68,6 +81,7 @@ module.exports = async (req, res) => {
   if (req.method === 'GET') {
     if (req.query.action === 'photos') {
       try {
+        await ensurePhotoTable();
         await pool.query(`
           CREATE TABLE IF NOT EXISTS student_card_prints (
             student_id BIGINT NOT NULL PRIMARY KEY,
@@ -75,7 +89,7 @@ module.exports = async (req, res) => {
           )
         `);
         const [rows] = await pool.query(`
-          SELECT photos.student_id, photos.reg_no, photos.photo_data, photos.file_name, photos.updated_at, prints.printed_at
+          SELECT photos.student_id, photos.reg_no, photos.photo_data, photos.file_name, photos.photo_status, photos.updated_at, prints.printed_at
           FROM student_photos photos
           LEFT JOIN student_card_prints prints ON prints.student_id = photos.student_id
         `);
@@ -126,7 +140,7 @@ module.exports = async (req, res) => {
         }
         await ensurePhotoTable();
         const [rows] = await pool.query(`
-          SELECT students.*, photos.photo_data, photos.file_name, photos.updated_at AS photo_updated_at
+          SELECT students.*, photos.photo_data, photos.file_name, photos.photo_status, photos.updated_at AS photo_updated_at
           FROM students
           LEFT JOIN student_photos photos ON photos.student_id = students.id
           WHERE students.reg_no = ? AND students.password = ?
@@ -134,7 +148,48 @@ module.exports = async (req, res) => {
         `, [body.reg_no.trim(), password]);
         if (!rows.length) return res.status(401).json({ error: 'Invalid student number or password.' });
         const { password: ignoredPassword, ...student } = rows[0];
+        student.photo_status = student.photo_data ? (student.photo_status || 'Pending') : 'No Picture';
         return res.status(200).json({ success: true, student });
+      }
+
+      if (action === 'student_update_profile') {
+        if (!body.reg_no || !body.password || !body.student_name) {
+          return res.status(400).json({ error: 'Registration number, password, and full name are required.' });
+        }
+        const [result] = await pool.query(
+          'UPDATE students SET student_name = ? WHERE reg_no = ? AND password = ?',
+          [String(body.student_name).trim(), body.reg_no.trim(), body.password]
+        );
+        if (!result.affectedRows) return res.status(401).json({ error: 'Student authentication failed.' });
+        return res.status(200).json({ success: true, message: 'Name updated successfully.' });
+      }
+
+      if (action === 'student_upload_photo') {
+        if (!body.reg_no || !body.password || !body.photo_data || !body.file_name) {
+          return res.status(400).json({ error: 'Student authentication and a photo are required.' });
+        }
+        if (!/^data:image\/(jpeg|png|webp);base64,/.test(body.photo_data)) {
+          return res.status(400).json({ error: 'Upload a JPG, PNG, or WebP image.' });
+        }
+        await ensurePhotoTable();
+        const [students] = await pool.query('SELECT id, reg_no FROM students WHERE reg_no = ? AND password = ? LIMIT 1', [body.reg_no.trim(), body.password]);
+        if (!students.length) return res.status(401).json({ error: 'Student authentication failed.' });
+        await pool.query(`
+          INSERT INTO student_photos (student_id, reg_no, photo_data, file_name, photo_status)
+          VALUES (?, ?, ?, ?, 'Pending')
+          ON DUPLICATE KEY UPDATE photo_data = VALUES(photo_data), file_name = VALUES(file_name), photo_status = 'Pending'
+        `, [students[0].id, students[0].reg_no, body.photo_data, body.file_name]);
+        return res.status(200).json({ success: true, photo_status: 'Pending', message: 'Photo submitted for approval.' });
+      }
+
+      if (action === 'admin_photo_review') {
+        if (!body.student_id || !['Approved', 'Rejected'].includes(body.photo_status)) {
+          return res.status(400).json({ error: 'Student and valid photo status are required.' });
+        }
+        await ensurePhotoTable();
+        const [result] = await pool.query('UPDATE student_photos SET photo_status = ? WHERE student_id = ?', [body.photo_status, body.student_id]);
+        if (!result.affectedRows) return res.status(404).json({ error: 'Photo submission not found.' });
+        return res.status(200).json({ success: true, photo_status: body.photo_status });
       }
 
       if (action === 'change_password') {
@@ -191,6 +246,7 @@ module.exports = async (req, res) => {
               reg_no VARCHAR(100) NOT NULL,
               photo_data LONGTEXT NOT NULL,
               file_name VARCHAR(255) NOT NULL,
+              photo_status VARCHAR(20) NOT NULL DEFAULT 'No Picture',
               updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
               PRIMARY KEY (student_id),
               UNIQUE KEY unique_student_photo_reg_no (reg_no)
@@ -205,10 +261,10 @@ module.exports = async (req, res) => {
               throw new Error(`Unsupported image data for ${photo.file_name}.`);
             }
             await connection.query(`
-              INSERT INTO student_photos (student_id, reg_no, photo_data, file_name)
-              VALUES (?, ?, ?, ?)
+              INSERT INTO student_photos (student_id, reg_no, photo_data, file_name, photo_status)
+              VALUES (?, ?, ?, ?, 'Pending')
               ON DUPLICATE KEY UPDATE
-                reg_no = VALUES(reg_no), photo_data = VALUES(photo_data), file_name = VALUES(file_name)
+                reg_no = VALUES(reg_no), photo_data = VALUES(photo_data), file_name = VALUES(file_name), photo_status = 'Pending'
             `, [photo.student_id, photo.reg_no, photo.photo_data, photo.file_name]);
           }
 

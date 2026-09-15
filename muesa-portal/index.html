@@ -37,6 +37,9 @@
     }
     .login-logo { width: 100px; height: auto; margin-bottom: 10px; }
     .login-card h2 { margin: 10px 0 20px 0; color: var(--primary-blue); font-size: 24px; }
+    .login-switcher { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin: 0 0 20px; background: #eef3f7; border-radius: 7px; }
+    .login-switcher button { border: 0; padding: 10px; border-radius: 5px; background: transparent; color: var(--primary-blue); font-weight: 700; cursor: pointer; }
+    .login-switcher button.active { color: white; background: var(--royal-blue); }
 
     /* HEADER */
     .header { 
@@ -173,13 +176,17 @@
     <div class="login-card">
       <img src="muesa bg.png" alt="MUESA Logo" class="login-logo">
       <h2>MUESA Portal Login</h2>
+      <div class="login-switcher" role="tablist" aria-label="Choose portal login">
+        <button type="button" id="studentModeBtn" class="active" role="tab" aria-selected="true">Student</button>
+        <button type="button" id="staffModeBtn" role="tab" aria-selected="false">Staff</button>
+      </div>
       <form id="loginForm">
         <div class="form-group" style="margin-bottom: 15px; text-align: left;">
-          <label>Username</label>
-          <input type="text" id="login_user" required placeholder="Enter username">
+          <label id="loginUserLabel">Student Registration Number</label>
+          <input type="text" id="login_user" required placeholder="Enter registration number">
         </div>
         <div class="form-group" style="margin-bottom: 20px; text-align: left;">
-          <label>Password</label>
+          <label id="loginPasswordLabel">Password</label>
           <input type="password" id="login_pass" required placeholder="Enter password">
         </div>
         <button type="submit" class="btn-submit">
@@ -370,6 +377,7 @@
   <script>
     let currentUser = null;
     let currentRole = null;
+    let loginMode = 'student';
     let allRecords = [];
     let studentPhotos = new Map();
     let editingRecordId = null;
@@ -391,6 +399,20 @@
       }
     }
 
+    function setLoginMode(mode) {
+      loginMode = mode;
+      const studentMode = mode === 'student';
+      document.getElementById('studentModeBtn').classList.toggle('active', studentMode);
+      document.getElementById('staffModeBtn').classList.toggle('active', !studentMode);
+      document.getElementById('studentModeBtn').setAttribute('aria-selected', String(studentMode));
+      document.getElementById('staffModeBtn').setAttribute('aria-selected', String(!studentMode));
+      document.getElementById('loginUserLabel').textContent = studentMode ? 'Student Registration Number' : 'Staff Username';
+      document.getElementById('login_user').placeholder = studentMode ? 'Enter registration number' : 'Enter username';
+      document.getElementById('login_pass').value = '';
+    }
+    document.getElementById('studentModeBtn').addEventListener('click', () => setLoginMode('student'));
+    document.getElementById('staffModeBtn').addEventListener('click', () => setLoginMode('staff'));
+
     // LOGIN
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -398,6 +420,14 @@
       const password = document.getElementById('login_pass').value;
 
       try {
+        if (loginMode === 'student') {
+          const studentResponse = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'student_login', reg_no: username, password }) });
+          const studentData = await studentResponse.json();
+          if (!studentResponse.ok || !studentData.success) throw new Error(studentData.error || 'Student login failed.');
+          sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student: studentData.student, password }));
+          window.location.href = 'student.html';
+          return;
+        }
         const res = await fetch('/api/index', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
