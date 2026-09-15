@@ -122,7 +122,21 @@
     function readImage(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); }); }
     $('logoutBtn').addEventListener('click', () => { sessionStorage.removeItem('muesaStudentSession'); student = null; $('profileView').style.display = 'none'; $('loginView').style.display = 'block'; $('loginPassword').value = '123'; setMessage($('loginMessage'), ''); });
     document.addEventListener('contextmenu', event => { if (event.target.closest('#profileView')) event.preventDefault(); });
-    const savedSession = JSON.parse(sessionStorage.getItem('muesaStudentSession') || 'null'); if (savedSession && savedSession.student && savedSession.password) { showProfile(savedSession.student); $('currentPassword').value = savedSession.password; }
+    async function restoreStudentSession() {
+      const savedSession = JSON.parse(sessionStorage.getItem('muesaStudentSession') || 'null');
+      if (!savedSession || !savedSession.student || !savedSession.password) return;
+      try {
+        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'student_login', reg_no: savedSession.student.reg_no, password: savedSession.password }) });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error('Session expired.');
+        sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student: data.student, password: savedSession.password }));
+        showProfile(data.student);
+        $('currentPassword').value = savedSession.password;
+      } catch (error) {
+        sessionStorage.removeItem('muesaStudentSession');
+      }
+    }
+    restoreStudentSession();
   </script>
 </body>
 </html>
