@@ -140,9 +140,16 @@ module.exports = async (req, res) => {
         }
         await ensurePhotoTable();
         const [rows] = await pool.query(`
-          SELECT students.*, photos.photo_data, photos.file_name, photos.photo_status, photos.updated_at AS photo_updated_at
+          SELECT students.*,
+            COALESCE(photos_by_id.photo_data, photos_by_reg.photo_data) AS photo_data,
+            COALESCE(photos_by_id.file_name, photos_by_reg.file_name) AS file_name,
+            COALESCE(photos_by_id.photo_status, photos_by_reg.photo_status) AS photo_status,
+            COALESCE(photos_by_id.updated_at, photos_by_reg.updated_at) AS photo_updated_at
           FROM students
-          LEFT JOIN student_photos photos ON photos.student_id = students.id
+          LEFT JOIN student_photos photos_by_id ON photos_by_id.student_id = students.id
+          LEFT JOIN student_photos photos_by_reg
+            ON photos_by_reg.student_id <> students.id
+            AND LOWER(photos_by_reg.reg_no) = LOWER(students.reg_no)
           WHERE LOWER(students.reg_no) = LOWER(?) AND students.password = ?
           LIMIT 1
         `, [body.reg_no.trim(), password]);
