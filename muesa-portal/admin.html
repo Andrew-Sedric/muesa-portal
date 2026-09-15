@@ -53,11 +53,11 @@
     .id-card { width: 131.2mm; height: 81.6mm; overflow: hidden; border: 1px solid #061d37; border-radius: 4mm; background: linear-gradient(135deg, #fff 0%, #fff 62%, #eefbff 100%); color: #061d37; font-family: Arial, sans-serif; position: relative; break-inside: avoid; }
     .id-card::before { content: ''; position: absolute; right: -18mm; bottom: -22mm; width: 62mm; height: 62mm; border: 2mm solid rgba(0, 166, 232, .1); border-radius: 50%; box-shadow: 0 0 0 4mm rgba(0, 30, 210, .06), 0 0 0 8mm rgba(226, 28, 17, .05); pointer-events: none; }
     .id-card::after { content: ''; position: absolute; left: 49mm; top: 25mm; width: 34mm; height: 34mm; border: .8mm solid rgba(0, 166, 232, .08); transform: rotate(45deg); box-shadow: 0 0 0 3mm rgba(0, 30, 210, .035), 0 0 0 6mm rgba(226, 28, 17, .025); pointer-events: none; }
-    .id-card-head { height: 22mm; display: flex; align-items: center; gap: 4mm; padding: 2.5mm 5mm; color: white; background: #061d37; border-bottom: 1.5mm solid #001ed2; }
+    .id-card-head { height: 22mm; display: flex; align-items: center; gap: 4mm; padding: 2.5mm 5mm; color: #061d37; background: #fff; border-bottom: 1.5mm solid #00a6e8; }
     .id-card-head img { width: 15mm; height: 15mm; flex: 0 0 15mm; object-fit: contain; background: white; border: .5mm solid #00a6e8; border-radius: 50%; }
     .id-card-head img:last-child { width: 12mm; height: 15mm; flex-basis: 12mm; border: 0; border-radius: 0; background: transparent; }
     .id-card-head div { min-width: 0; flex: 1; line-height: 1; }
-    .id-card-head strong { display: block; color: white; font-size: 5.25mm; letter-spacing: 0; white-space: nowrap; }
+    .id-card-head strong { display: block; color: #061d37; font-size: 5.25mm; letter-spacing: 0; white-space: nowrap; }
     .id-card-head strong em { color: #00a6e8; font-style: normal; }
     .id-card-head strong span { color: #e87835; }
     .id-card-head > div > span { display: block; color: #00a6e8; font-size: 3.6mm; margin-top: 1.5mm; text-align: center; text-transform: uppercase; white-space: nowrap; }
@@ -182,20 +182,7 @@
     async function readImage(file) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => {
-          const image = new Image();
-          image.onload = () => {
-            const maxWidth = 480, maxHeight = 640;
-            const scale = Math.min(1, maxWidth / image.naturalWidth, maxHeight / image.naturalHeight);
-            const canvas = document.createElement('canvas');
-            canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-            canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-            canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
-            resolve(canvas.toDataURL('image/jpeg', 0.72));
-          };
-          image.onerror = () => reject(new Error(`Unable to read ${file.name}`));
-          image.src = reader.result;
-        };
+        reader.onload = () => resolve(reader.result);
         reader.onerror = () => reject(new Error(`Unable to read ${file.name}`));
         reader.readAsDataURL(file);
       });

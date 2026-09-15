@@ -152,18 +152,6 @@ module.exports = async (req, res) => {
         return res.status(200).json({ success: true, student });
       }
 
-      if (action === 'student_update_profile') {
-        if (!body.reg_no || !body.password || !body.student_name) {
-          return res.status(400).json({ error: 'Registration number, password, and full name are required.' });
-        }
-        const [result] = await pool.query(
-          'UPDATE students SET student_name = ? WHERE reg_no = ? AND password = ?',
-          [String(body.student_name).trim(), body.reg_no.trim(), body.password]
-        );
-        if (!result.affectedRows) return res.status(401).json({ error: 'Student authentication failed.' });
-        return res.status(200).json({ success: true, message: 'Name updated successfully.' });
-      }
-
       if (action === 'student_upload_photo') {
         if (!body.reg_no || !body.password || !body.photo_data || !body.file_name) {
           return res.status(400).json({ error: 'Student authentication and a photo are required.' });
