@@ -72,6 +72,7 @@
     let student = null;
     const setMessage = (element, text, success = false) => { element.textContent = text; element.className = `message${success ? ' success' : ''}`; };
     function renderPhoto(photoData) {
+      photoData = photoData || student.photoData || '';
       const box = $('profilePhotoBox');
       box.innerHTML = '';
       if (photoData) { const image = document.createElement('img'); image.className = 'profile-photo'; image.src = photoData; image.alt = 'Student profile photo'; box.appendChild(image); } else { box.className = 'photo-empty'; box.textContent = 'No Picture'; }
@@ -79,7 +80,7 @@
       $('photoStatus').textContent = status === 'Pending' ? 'Pending Approval' : status === 'Rejected' ? 'Rejected - upload a new compliant photo' : status;
       $('photoStatus').className = `photo-status ${status.toLowerCase()}`;
       const preview = $('previewPhoto'); preview.innerHTML = ''; preview.className = 'id-preview-photo' + (photoData ? '' : ' empty');
-      if (photoData) { const image = document.createElement('img'); image.src = photoData; image.alt = 'ID preview photo'; image.style.cssText = 'width:100%;height:100%;object-fit:contain;border-radius:10px'; preview.appendChild(image); } else preview.textContent = 'No Picture';
+      if (photoData) { const image = document.createElement('img'); image.src = photoData; image.alt = 'ID preview photo'; image.style.cssText = 'width:100%;height:100%;object-fit:cover;object-position:center;border-radius:10px'; preview.appendChild(image); } else preview.textContent = 'No Picture';
       $('previewIdNumber').textContent = student.id ? `26/${String(student.id).padStart(3, '0')}` : '-';
       $('previewGender').textContent = student.gender || student.sex || 'FEMALE';
       if (window.JsBarcode) JsBarcode($('previewBarcode'), student.reg_no || 'STUDENT', { format: 'CODE128', lineColor: '#080f1b', width: 1, height: 18, displayValue: false, margin: 0 });
