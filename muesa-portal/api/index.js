@@ -59,6 +59,22 @@ async function ensurePhotoTable() {
       if (error.code !== 'ER_DUP_FIELDNAME' && error.errno !== 1060) throw error;
     }
   }
+
+  await pool.query(`
+    UPDATE student_photos
+    SET photo_status = 'Approved'
+    WHERE photo_data IS NOT NULL
+      AND TRIM(photo_data) <> ''
+      AND photo_status IN ('No Picture', '')
+  `);
+}
+
+function normalizePhotoStatus(photoData, photoStatus) {
+  const status = String(photoStatus || '').trim();
+  if (!photoData) return 'No Picture';
+  if (['Approved', 'Pending', 'Rejected'].includes(status)) return status;
+  if (status === 'No Picture' || !status) return 'Approved';
+  return 'Approved';
 }
 
 module.exports = async (req, res) => {
@@ -93,7 +109,10 @@ module.exports = async (req, res) => {
           FROM student_photos photos
           LEFT JOIN student_card_prints prints ON prints.student_id = photos.student_id
         `);
-        return res.status(200).json(rows);
+        return res.status(200).json(rows.map(photo => ({
+          ...photo,
+          photo_status: normalizePhotoStatus(photo.photo_data, photo.photo_status)
+        })));
       } catch (error) {
         if (error.code === 'ER_NO_SUCH_TABLE' || error.code === 'ER_BAD_TABLE_ERROR') {
           return res.status(200).json([]);
@@ -153,7 +172,7 @@ module.exports = async (req, res) => {
         `, [body.reg_no.trim(), password]);
         if (!rows.length) return res.status(401).json({ error: 'Invalid student number or password.' });
         const { password: ignoredPassword, ...student } = rows[0];
-        student.photo_status = student.photo_data ? (student.photo_status || 'Pending') : 'No Picture';
+        student.photo_status = normalizePhotoStatus(student.photo_data, student.photo_status);
         return res.status(200).json({ success: true, student });
       }
 
