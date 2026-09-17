@@ -72,7 +72,7 @@
     let student = null;
     const setMessage = (element, text, success = false) => { element.textContent = text; element.className = `message${success ? ' success' : ''}`; };
     function renderPhoto(photoData) {
-      photoData = photoData || student.photoData || '';
+      photoData = photoData || student.photo_data || '';
       const box = $('profilePhotoBox');
       box.innerHTML = '';
       if (photoData) { const image = document.createElement('img'); image.className = 'profile-photo'; image.src = photoData; image.alt = 'Student profile photo'; box.appendChild(image); } else { box.className = 'photo-empty'; box.textContent = 'No Picture'; }
@@ -92,7 +92,7 @@
       $('loginView').style.display = 'none'; $('profileView').style.display = 'block';
       $('profileName').textContent = student.student_name || student.full_name || '-';
       $('profileRegNo').textContent = student.reg_no || '-'; $('profileClass').textContent = student.student_class || '-'; $('profileYear').textContent = student.year || '-'; $('profilePayment').textContent = student.payment_type || '-';
-      $('previewName').textContent = student.student_name || student.full_name || '-'; $('previewRegNo').textContent = student.reg_no || '-'; $('previewClass').textContent = student.student_class || '-'; $('previewYear').textContent = student.year || '-'; renderPhoto(student.photo_data);
+      $('previewName').textContent = student.student_name || student.full_name || '-'; $('previewRegNo').textContent = student.reg_no || '-'; renderPhoto(student.photo_data);
     }
     $('loginForm').addEventListener('submit', async event => {
       event.preventDefault(); setMessage($('loginMessage'), 'Signing in...');
