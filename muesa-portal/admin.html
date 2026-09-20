@@ -134,6 +134,7 @@
       <button class="btn btn-quiet" id="printBtn" disabled>Print selected cards</button>
       <button class="btn btn-primary" id="zipBtn" disabled>Download PDF ZIP</button>
       <button class="btn btn-danger" id="clearBtn">Clear pending files</button>
+      <label class="muted" for="studentSearch">Search student: <input id="studentSearch" type="search" placeholder="Name or student number" style="width:220px;min-width:0;padding:9px"></label>
       <label class="muted" for="photoFilter">Show: <select id="photoFilter" style="width:auto;min-width:170px"><option value="All">All students</option><option value="Without Picture">Without photos</option><option value="With Picture">With photos</option><option value="Pending">Pending approval</option><option value="Approved">Approved photos</option></select></label>
       <div class="status muted" id="status">No pending files.</div>
     </section>
@@ -170,7 +171,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script>
-    const state = { students: [], photos: new Map(), files: [], mappings: new Map(), selected: new Set(), printed: new Map(), page: 1, pageSize: 20, photoFilter: 'All' };
+    const state = { students: [], photos: new Map(), files: [], mappings: new Map(), selected: new Set(), printed: new Map(), page: 1, pageSize: 20, photoFilter: 'All', search: '' };
     const $ = id => document.getElementById(id);
     const normalize = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const fileStem = name => name.replace(/\.[^.]+$/, '');
@@ -191,7 +192,7 @@
     function findStudent(fileName) { const stem = normalize(fileStem(fileName)); return state.students.find(student => normalize(student.student_name || student.full_name) === stem) || null; }
     function photoFor(student) { return state.photos.get(String(student.id)) || state.photos.get(student.reg_no); }
     function pendingForStudent(studentId) { return state.files.find(file => state.mappings.get(file.key) === String(studentId)); }
-    function filteredStudents() { return state.students.filter(student => { const photo = photoFor(student); if (state.photoFilter === 'Without Picture') return !photo || !photo.photo_data; if (state.photoFilter === 'With Picture') return Boolean(photo && photo.photo_data); if (state.photoFilter === 'Pending') return photo?.photo_status === 'Pending'; if (state.photoFilter === 'Approved') return photo?.photo_status === 'Approved'; return true; }); }
+    function filteredStudents() { return state.students.filter(student => { const search = normalize(state.search); const studentText = normalize(`${student.student_name || student.full_name || ''} ${student.reg_no || ''}`); if (search && !studentText.includes(search)) return false; const photo = photoFor(student); if (state.photoFilter === 'Without Picture') return !photo || !photo.photo_data; if (state.photoFilter === 'With Picture') return Boolean(photo && photo.photo_data); if (state.photoFilter === 'Pending') return photo?.photo_status === 'Pending'; if (state.photoFilter === 'Approved') return photo?.photo_status === 'Approved'; return true; }); }
     function pageStudents() { const start = (state.page - 1) * state.pageSize; return filteredStudents().slice(start, start + state.pageSize); }
 
     function cardMissing(student, photo) {
@@ -253,6 +254,7 @@
     $('selectAll').addEventListener('change', event => { pageStudents().forEach(student => event.target.checked ? state.selected.add(String(student.id)) : state.selected.delete(String(student.id))); render(); });
     $('prevBtn').addEventListener('click', () => { state.page--; render(); }); $('nextBtn').addEventListener('click', () => { state.page++; render(); });
     $('clearBtn').addEventListener('click', () => { state.files = []; state.mappings.clear(); $('status').textContent = 'Pending files cleared. Nothing was saved.'; render(); });
+    $('studentSearch').addEventListener('input', event => { state.search = event.target.value; state.page = 1; render(); });
     $('photoFilter').addEventListener('change', event => { state.photoFilter = event.target.value; state.page = 1; state.selected.clear(); render(); });
 
     $('confirmBtn').addEventListener('click', async () => {
