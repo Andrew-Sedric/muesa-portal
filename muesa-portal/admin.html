@@ -134,6 +134,7 @@
       <button class="btn btn-quiet" id="printBtn" disabled>Print selected cards</button>
       <button class="btn btn-primary" id="zipBtn" disabled>Download PDF ZIP</button>
       <button class="btn btn-danger" id="clearBtn">Clear pending files</button>
+      <label class="muted" for="photoFilter">Show: <select id="photoFilter" style="width:auto;min-width:170px"><option value="All">All students</option><option value="Without Picture">Without photos</option><option value="With Picture">With photos</option><option value="Pending">Pending approval</option><option value="Approved">Approved photos</option></select></label>
       <div class="status muted" id="status">No pending files.</div>
     </section>
 
@@ -169,14 +170,14 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script>
-    const state = { students: [], cardNumbers: new Map(), photos: new Map(), files: [], mappings: new Map(), selected: new Set(), printed: new Map(), page: 1, pageSize: 20 };
+    const state = { students: [], photos: new Map(), files: [], mappings: new Map(), selected: new Set(), printed: new Map(), page: 1, pageSize: 20, photoFilter: 'All' };
     const $ = id => document.getElementById(id);
     const normalize = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const fileStem = name => name.replace(/\.[^.]+$/, '');
     const escapeHtml = value => String(value || '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
     const issueDate = '01/08/2026';
     const expiryDate = '01/01/2030';
-    function cardIdFor(student) { const sequence = state.cardNumbers.get(String(student.id)) || state.students.indexOf(student) + 1; return `26/${String(sequence).padStart(3, '0')}`; }
+    function cardIdFor(student) { return student.card_number || `26/${String(student.id).padStart(3, '0')}`; }
     function qrPayloadFor(student) { return JSON.stringify({ name: student.student_name || student.full_name || '', studentNumber: student.reg_no || '', idNumber: cardIdFor(student), department: 'Education Students Association', gender: student.gender || student.sex || 'FEMALE', issueDate, expiryDate }); }
 
     async function readImage(file) {
@@ -190,7 +191,8 @@
     function findStudent(fileName) { const stem = normalize(fileStem(fileName)); return state.students.find(student => normalize(student.student_name || student.full_name) === stem) || null; }
     function photoFor(student) { return state.photos.get(String(student.id)) || state.photos.get(student.reg_no); }
     function pendingForStudent(studentId) { return state.files.find(file => state.mappings.get(file.key) === String(studentId)); }
-    function pageStudents() { const start = (state.page - 1) * state.pageSize; return state.students.slice(start, start + state.pageSize); }
+    function filteredStudents() { return state.students.filter(student => { const photo = photoFor(student); if (state.photoFilter === 'Without Picture') return !photo || !photo.photo_data; if (state.photoFilter === 'With Picture') return Boolean(photo && photo.photo_data); if (state.photoFilter === 'Pending') return photo?.photo_status === 'Pending'; if (state.photoFilter === 'Approved') return photo?.photo_status === 'Approved'; return true; }); }
+    function pageStudents() { const start = (state.page - 1) * state.pageSize; return filteredStudents().slice(start, start + state.pageSize); }
 
     function cardMissing(student, photo) {
       const missing = [];
@@ -213,10 +215,10 @@
         const image = pending ? `<img class="student-photo" src="${pending.url}" alt="Pending ${escapeHtml(student.student_name)}">` : existing ? `<img class="student-photo" src="${existing.photo_data}" alt="Existing ${escapeHtml(student.student_name)}">` : '<span class="muted">No Picture</span>';
         rows.insertAdjacentHTML('beforeend', `<tr class="${checked ? 'is-selected' : ''}"><td class="no-print"><input class="row-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''}></td><td>${image}</td><td class="student">${escapeHtml(student.student_name || student.full_name || '-')}</td><td>${escapeHtml(student.reg_no || '-')}</td><td>${existing ? '<span class="muted">Confirmed</span>' : '<span class="muted">Not assigned</span>'}</td><td><div class="match ${pending ? '' : 'unmatched'}">${pending ? `<img src="${pending.url}" alt="">` : '<span>—</span>'}<div><select class="mapping" data-student="${escapeHtml(id)}">${fileOptions}</select><small>${pending ? escapeHtml(pending.name) : 'Filename match not found; choose manually.'}</small></div></div></td><td>${status}</td><td class="no-print"><div style="display:grid;gap:6px">${printButton}<button class="btn btn-danger reset-password" data-id="${escapeHtml(id)}">Reset password</button><input class="export-check" type="checkbox" data-id="${escapeHtml(id)}" ${checked ? 'checked' : ''} aria-label="Include ${escapeHtml(student.student_name)} in PDF"></div></td></tr>`);
       });
-      const totalPages = Math.max(1, Math.ceil(state.students.length / state.pageSize));
+      const totalPages = Math.max(1, Math.ceil(filteredStudents().length / state.pageSize));
       $('pageInfo').textContent = `Page ${state.page} of ${totalPages}`;
       $('prevBtn').disabled = state.page <= 1; $('nextBtn').disabled = state.page >= totalPages;
-      $('studentCount').textContent = `${state.students.length} students`;
+      $('studentCount').textContent = `${filteredStudents().length} students`;
       $('matchCount').textContent = `${state.mappings.size} matched`;
       $('selectedCount').textContent = `${state.selected.size} selected`;
       $('confirmBtn').disabled = !Array.from(state.mappings.values()).some(Boolean);
@@ -251,6 +253,7 @@
     $('selectAll').addEventListener('change', event => { pageStudents().forEach(student => event.target.checked ? state.selected.add(String(student.id)) : state.selected.delete(String(student.id))); render(); });
     $('prevBtn').addEventListener('click', () => { state.page--; render(); }); $('nextBtn').addEventListener('click', () => { state.page++; render(); });
     $('clearBtn').addEventListener('click', () => { state.files = []; state.mappings.clear(); $('status').textContent = 'Pending files cleared. Nothing was saved.'; render(); });
+    $('photoFilter').addEventListener('change', event => { state.photoFilter = event.target.value; state.page = 1; state.selected.clear(); render(); });
 
     $('confirmBtn').addEventListener('click', async () => {
       const photos = Array.from(state.mappings.entries()).map(([key, studentId]) => { const file = state.files.find(item => item.key === key); const student = state.students.find(item => String(item.id) === studentId); return file && student ? { student_id: student.id, reg_no: student.reg_no, photo_data: file.url, file_name: file.name } : null; }).filter(Boolean);
@@ -373,7 +376,7 @@
       $('photoReview').style.display = pending.length ? 'block' : 'none';
       $('photoReviewList').innerHTML = pending.map(photo => { const student = state.students.find(item => String(item.id) === String(photo.student_id)); return `<div class="photo-review-item"><img src="${photo.photo_data}" alt=""><div class="review-details"><strong>${escapeHtml(student?.student_name || photo.reg_no)}</strong><div class="muted">${escapeHtml(photo.reg_no)} · Pending Approval</div></div><div class="review-actions"><button class="btn btn-primary" onclick="reviewPhoto(${photo.student_id}, 'Approved')">Approve</button><button class="btn btn-danger" onclick="reviewPhoto(${photo.student_id}, 'Rejected')">Reject</button></div></div>`; }).join('');
     }
-    async function load() { try { const [studentsResponse, photosResponse] = await Promise.all([fetch('/api/index'), fetch('/api/index?action=photos')]); state.students = await studentsResponse.json(); state.cardNumbers.clear(); state.students.forEach((student, index) => state.cardNumbers.set(String(student.id), index + 1)); const photos = await photosResponse.json(); state.photos.clear(); photos.forEach(photo => { state.photos.set(String(photo.student_id), photo); state.photos.set(photo.reg_no, photo); if (photo.printed_at) state.printed.set(String(photo.student_id), new Date(photo.printed_at).toLocaleString()); }); renderPhotoReview(); render(); } catch (error) { $('emptyState').textContent = `Unable to load students: ${error.message}`; $('status').textContent = 'Connection error.'; } }
+    async function load() { try { const [studentsResponse, photosResponse] = await Promise.all([fetch('/api/index'), fetch('/api/index?action=photos')]); state.students = (await studentsResponse.json()).sort((a, b) => Number(b.id) - Number(a.id)); const photos = await photosResponse.json(); state.photos.clear(); photos.forEach(photo => { state.photos.set(String(photo.student_id), photo); state.photos.set(photo.reg_no, photo); if (photo.printed_at) state.printed.set(String(photo.student_id), new Date(photo.printed_at).toLocaleString()); }); renderPhotoReview(); render(); } catch (error) { $('emptyState').textContent = `Unable to load students: ${error.message}`; $('status').textContent = 'Connection error.'; } }
     load();
   </script>
 </body>

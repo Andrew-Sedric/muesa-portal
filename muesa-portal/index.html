@@ -578,7 +578,7 @@
     async function loadRecords() {
       try {
         const [recordsRes, photosRes] = await Promise.all([fetch('/api/index'), fetch('/api/index?action=photos')]);
-        allRecords = await recordsRes.json();
+        allRecords = (await recordsRes.json()).sort((a, b) => Number(b.id) - Number(a.id));
         const photos = await photosRes.json();
         studentPhotos = new Map();
         photos.forEach(photo => {

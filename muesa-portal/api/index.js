@@ -14,6 +14,7 @@ const pool = mysql.createPool({
 });
 
 let passwordMigration;
+let cardNumberMigration;
 async function ensurePasswordColumn() {
   if (!passwordMigration) {
     passwordMigration = (async () => {
@@ -32,6 +33,31 @@ async function ensurePasswordColumn() {
     })();
   }
   return passwordMigration;
+}
+
+async function ensureCardNumberColumn() {
+  if (!cardNumberMigration) {
+    cardNumberMigration = (async () => {
+      const [columns] = await pool.query(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'students' AND COLUMN_NAME = 'card_number'
+      `);
+      if (!columns.length) {
+        try {
+          await pool.query("ALTER TABLE students ADD COLUMN card_number VARCHAR(20) NULL");
+        } catch (error) {
+          if (error.code !== 'ER_DUP_FIELDNAME' && error.errno !== 1060) throw error;
+        }
+      }
+
+      const [students] = await pool.query("SELECT id FROM students WHERE card_number IS NULL OR TRIM(card_number) = '' ORDER BY id ASC");
+      for (let index = 0; index < students.length; index += 1) {
+        await pool.query('UPDATE students SET card_number = ? WHERE id = ?', [`26/${String(index + 1).padStart(3, '0')}`, students[index].id]);
+      }
+    })();
+  }
+  return cardNumberMigration;
 }
 
 async function ensurePhotoTable() {
@@ -88,6 +114,7 @@ module.exports = async (req, res) => {
 
   try {
     await ensurePasswordColumn();
+    await ensureCardNumberColumn();
   } catch (error) {
     console.error('Student password migration error:', error);
     return res.status(500).json({ error: 'Unable to prepare student accounts.' });
@@ -364,6 +391,14 @@ module.exports = async (req, res) => {
       ];
 
       const [result] = await pool.query(query, values);
+      const [latestCard] = await pool.query(`
+        SELECT MAX(CAST(SUBSTRING_INDEX(card_number, '/', -1) AS UNSIGNED)) AS latest_number
+        FROM students
+        WHERE card_number IS NOT NULL AND card_number <> ''
+      `);
+      const nextCardNumber = Number(latestCard[0]?.latest_number || 0) + 1;
+      const cardNumber = `26/${String(nextCardNumber).padStart(3, '0')}`;
+      await pool.query('UPDATE students SET card_number = ? WHERE id = ?', [cardNumber, result.insertId]);
 
       // Email Dispatch
       let emailSent = false;
@@ -415,6 +450,7 @@ module.exports = async (req, res) => {
       return res.status(200).json({ 
         success: true, 
         insertId: result.insertId,
+        card_number: cardNumber,
         emailSent: emailSent,
         emailError: emailErrorDetails 
       });
