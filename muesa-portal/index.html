@@ -207,6 +207,7 @@
       <div>
         <span id="userBadge" style="margin-right: 15px;"></span>
         <a class="btn-logout" href="student.html" style="display: inline-block; text-decoration: none; margin-right: 8px;">Student Portal</a>
+        <a class="btn-logout" id="pastPapersAdminLink" href="admin_2.html" style="display: none; text-decoration: none; margin-right: 8px;">Past Papers</a>
         <a class="btn-logout" id="photoAdminLink" href="admin.html" style="display: none; text-decoration: none; margin-right: 8px;">Photo Admin</a>
         <button class="btn-logout" id="logoutBtn">Sign Out</button>
       </div>
@@ -460,6 +461,7 @@
           } else {
             document.getElementById('reportsSection').style.display = 'none';
           }
+          document.getElementById('pastPapersAdminLink').style.display = 'inline-block';
         } else {
           alert(data.error || 'Login failed.');
         }
