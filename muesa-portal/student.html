@@ -33,6 +33,7 @@
     .id-preview-qr { position: absolute; right: 4%; bottom: 10%; width: 18%; aspect-ratio: 1; padding: 2%; background: white; border: 1px solid #061d37; overflow: hidden; }
     .id-preview-qr canvas, .id-preview-qr img { width: 100% !important; height: 100% !important; }
     .id-preview-verify { position: absolute; right: 4%; bottom: 3%; width: 18%; padding: 1%; color: white; background: #001ed2; border-radius: 4px; text-align: center; font-size: clamp(7px, 1vw, 10px); font-weight: 700; }
+    .vault-panel { margin-top: 20px; padding: 24px; } .vault-tools { display: flex; gap: 10px; margin: 16px 0; } .vault-tools input { flex: 1; } .vault-subject { margin-top: 14px; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; } .vault-subject summary { padding: 13px 15px; color: var(--navy); background: #f3f7f6; cursor: pointer; font-weight: 800; } .vault-documents { display: grid; gap: 8px; padding: 12px; } .vault-document { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px; border: 1px solid var(--line); border-radius: 4px; } .vault-document strong, .vault-document small { display: block; } .vault-document small { color: var(--muted); margin-top: 3px; } .vault-viewer { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(6,29,55,.86); } .vault-viewer[hidden] { display: none; } .vault-viewer-inner { width: min(100%, 980px); max-height: 100%; overflow: auto; padding: 18px; background: white; border-radius: 8px; } .vault-viewer canvas { display: block; width: 100%; height: auto; max-height: 76vh; object-fit: contain; background: #f4f7f6; } .vault-viewer-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; margin-bottom: 12px; }
     @media (max-width: 650px) { .shell { width: min(100% - 20px, 980px); padding-top: 12px; } .topbar { align-items: flex-start; flex-direction: column; } .top-actions { width: 100%; } .top-actions .btn { flex: 1; text-align: center; } .profile-grid { grid-template-columns: 1fr; padding: 20px; } .profile-photo { width: 150px; height: 185px; } .details { grid-template-columns: 1fr; } .login { margin-top: 5vh; padding: 24px; } }
   </style>
 </head>
@@ -55,21 +56,24 @@
         <div class="brand"><img src="muesa bg.png" alt="MUESA crest"><div><div class="eyebrow">MUESA student portal</div><h2>My student profile</h2></div></div>
         <div class="top-actions"><a class="btn btn-quiet" href="index.html">Main portal</a><button class="btn btn-primary" id="logoutBtn">Sign out</button></div>
       </header>
-      <nav class="portal-menu" aria-label="Student portal sections"><button class="active" data-section="profileSection">Profile</button><button data-section="photoSection">Profile photo</button><button data-section="idSection">ID card preview</button><button data-section="securitySection">Security</button></nav>
+      <nav class="portal-menu" aria-label="Student portal sections"><button class="active" data-section="profileSection">Profile</button><button data-section="photoSection">Profile photo</button><button data-section="idSection">ID card preview</button><button data-section="vaultSection">Past papers</button><button data-section="securitySection">Security</button></nav>
       <section class="panel profile-grid portal-section active" id="profileSection">
         <div><div id="profilePhotoBox" class="photo-empty">No Picture</div><div id="photoStatus" class="photo-status">No Picture</div></div>
         <div><h1 id="profileName"></h1><p class="muted">Your registered student information</p><div class="details"><div class="detail"><b>Registration number</b><span id="profileRegNo"></span></div><div class="detail"><b>Class / Semester</b><span id="profileClass"></span></div><div class="detail"><b>Year</b><span id="profileYear"></span></div><div class="detail"><b>Payment type</b><span id="profilePayment"></span></div></div></div>
       </section>
       <section class="panel photo-panel portal-section" id="photoSection"><h2>Profile photo</h2><p class="muted">Upload a clear passport-style photo. Your current photo stays visible while a replacement is reviewed.</p><form class="form" id="photoForm"><label>Choose profile photo<input id="photoInput" type="file" accept="image/jpeg,image/png,image/webp" required></label><button class="btn btn-primary" type="submit">Submit photo for approval</button></form><p class="message" id="profileMessage" role="alert"></p></section>
       <section class="panel id-preview-panel portal-section" id="idSection" oncontextmenu="return false"><h2>My ID Card Preview</h2><p class="muted">This preview is for viewing only. Your card becomes available after photo approval.</p><div class="id-preview" id="idPreview"><header class="id-preview-head"><img src="mru logo.png" alt="Muteesa I Royal University logo"><div><strong><em>MUTEESA I</em> <span>ROYAL UNIVERSITY</span></strong><span>EDUCATION STUDENTS ASSOCIATION</span></div><img src="muesa bg.png" alt="MUESA association crest"></header><div class="id-preview-main"><div class="id-preview-photo-column"><div id="previewPhoto" class="id-preview-photo empty">No Picture</div><div class="id-preview-idno">ID NO:<strong id="previewIdNumber"></strong><svg id="previewBarcode" class="id-preview-barcode" role="img" aria-label="Student barcode"></svg></div></div><div class="id-preview-info"><h2><span id="previewName"></span><small style="display:block;color:#e21c11;font-size:70%;font-weight:normal;margin-top:1%">STUDENT ID CARD</small></h2><p><b>DEPARTMENT</b><br>Education Students Association</p><p><b>GENDER</b><br><span id="previewGender">FEMALE</span></p><p><b>STUDENT NUMBER</b><br><span id="previewRegNo"></span></p><div class="id-preview-dates"><div><b>ISSUE DATE</b><span>01/08/2026</span></div><div><b>EXPIRY DATE</b><span>01/01/2030</span></div></div><div id="previewQr" class="id-preview-qr"></div><div class="id-preview-verify">SCAN TO<br>VERIFY</div></div></div></div></section>
+      <section class="panel vault-panel portal-section" id="vaultSection" oncontextmenu="return false"><h2>Past Papers &amp; Document Vault</h2><p class="muted">Available to paid association members. Documents are view-only and watermarked.</p><div class="vault-tools"><input id="vaultSearch" type="search" placeholder="Search subject, title, or year" aria-label="Search past papers"></div><p class="message" id="vaultMessage" role="alert"></p><div id="vaultList"><p class="muted">Loading documents...</p></div></section>
       <section class="panel password-panel portal-section" id="securitySection"><h2>Security</h2><p class="muted">Use a password you do not share with anyone else.</p><form class="form" id="passwordForm"><label>Current password<input id="currentPassword" type="password" required autocomplete="current-password"></label><label>New password<input id="newPassword" type="password" required minlength="3" autocomplete="new-password"></label><label>Confirm new password<input id="confirmPassword" type="password" required minlength="3" autocomplete="new-password"></label><button class="btn btn-primary" type="submit">Update password</button></form><p class="message" id="passwordMessage" role="alert"></p></section>
     </section>
   </main>
+  <div class="vault-viewer" id="vaultViewer" hidden><div class="vault-viewer-inner"><div class="vault-viewer-head"><div><h2 id="viewerTitle"></h2><p class="muted" id="viewerFileName"></p></div><button class="btn btn-quiet" id="closeViewer">Close</button></div><canvas id="paperCanvas" aria-label="Watermarked document viewer"></canvas></div></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.6/JsBarcode.all.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
     const $ = id => document.getElementById(id);
     let student = null;
+    let vaultPapers = [];
     const setMessage = (element, text, success = false) => { element.textContent = text; element.className = `message${success ? ' success' : ''}`; };
     function renderPhoto(photoData) {
       photoData = photoData || student.photo_data || '';
@@ -103,8 +107,28 @@
       $('loginView').style.display = 'none'; $('profileView').style.display = 'block';
       $('profileName').textContent = student.student_name || student.full_name || '-';
       $('profileRegNo').textContent = student.reg_no || '-'; $('profileClass').textContent = student.student_class || '-'; $('profileYear').textContent = student.year || '-'; $('profilePayment').textContent = student.payment_type || '-';
-      $('previewName').textContent = student.student_name || student.full_name || '-'; $('previewRegNo').textContent = student.reg_no || '-'; renderPhoto(student.photo_data);
+      $('previewName').textContent = student.student_name || student.full_name || '-'; $('previewRegNo').textContent = student.reg_no || '-'; renderPhoto(student.photo_data); loadVault();
     }
+    function groupPapers(papers) { return papers.reduce((groups, paper) => { (groups[paper.course_code] ||= []).push(paper); return groups; }, {}); }
+    function renderVault() {
+      const query = $('vaultSearch').value.trim().toLowerCase();
+      const filtered = vaultPapers.filter(paper => `${paper.course_code} ${paper.title} ${paper.paper_year}`.toLowerCase().includes(query));
+      const groups = groupPapers(filtered); const entries = Object.entries(groups);
+      $('vaultList').innerHTML = entries.length ? entries.map(([subject, papers]) => `<details class="vault-subject" open><summary>${escapeHtml(subject)} (${papers.length})</summary><div class="vault-documents">${papers.map(paper => `<div class="vault-document"><div><strong>${escapeHtml(paper.title)}</strong><small>${escapeHtml(paper.paper_year)} · ${escapeHtml(paper.file_name)}</small></div><button class="btn btn-primary view-paper" data-id="${paper.id}">View</button></div>`).join('')}</div></details>`).join('') : '<p class="muted">No matching documents found.</p>';
+    }
+    function escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[character])); }
+    async function loadVault() {
+      try { const response = await fetch(`/api/index_2?action=get_past_papers&reg_no=${encodeURIComponent(student.reg_no)}`); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Unable to load the document vault.'); vaultPapers = data; renderVault(); }
+      catch (error) { vaultPapers = []; $('vaultList').innerHTML = ''; setMessage($('vaultMessage'), `${error.message} Access is restricted to paid members.`); }
+    }
+    function openPaper(paper) {
+      const image = new Image(); image.onload = () => { const canvas = $('paperCanvas'); const scale = Math.min(1, 1500 / image.width); canvas.width = Math.max(1, image.width * scale); canvas.height = Math.max(1, image.height * scale); const context = canvas.getContext('2d'); context.drawImage(image, 0, 0, canvas.width, canvas.height); context.save(); context.globalAlpha = .25; context.fillStyle = '#123047'; context.font = `bold ${Math.max(18, canvas.width / 22)}px sans-serif`; context.rotate(-Math.PI / 6); for (let y = -canvas.height; y < canvas.height * 2; y += 100) for (let x = -canvas.width; x < canvas.width * 2; x += 270) context.fillText(`MUESA • ${student.reg_no}`, x, y); context.restore(); $('vaultViewer').hidden = false; }; image.src = paper.image_data; $('viewerTitle').textContent = `${paper.course_code}: ${paper.title}`; $('viewerFileName').textContent = `${paper.paper_year} · ${paper.file_name}`;
+    }
+    $('vaultSearch').addEventListener('input', renderVault);
+    $('vaultList').addEventListener('click', event => { const button = event.target.closest('.view-paper'); if (button) openPaper(vaultPapers.find(paper => String(paper.id) === button.dataset.id)); });
+    $('closeViewer').addEventListener('click', () => { $('vaultViewer').hidden = true; $('paperCanvas').width = 1; $('paperCanvas').height = 1; });
+    $('vaultViewer').addEventListener('click', event => { if (event.target === $('vaultViewer')) $('closeViewer').click(); });
+    document.addEventListener('keydown', event => { if (!$('vaultViewer').hidden && (event.key === 'PrintScreen' || (event.ctrlKey && ['s', 'p', 'u', 'c'].includes(event.key.toLowerCase())))) { event.preventDefault(); event.stopPropagation(); } });
     $('loginForm').addEventListener('submit', async event => {
       event.preventDefault(); setMessage($('loginMessage'), 'Signing in...');
       try {
