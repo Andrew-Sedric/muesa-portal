@@ -47,16 +47,6 @@ module.exports = async (req, res) => {
       const { action, reg_no: regNo } = req.query || {};
       if (action !== 'get_past_papers') return res.status(400).json({ error: 'A valid action is required.' });
 
-      if (regNo) {
-        const [students] = await pool.query(
-          'SELECT subscribed FROM students WHERE LOWER(reg_no) = LOWER(?) LIMIT 1',
-          [String(regNo).trim()]
-        );
-        if (!students.length || !Number(students[0].subscribed)) {
-          return res.status(403).json({ error: 'Access denied. Only subscribed association members can view past papers.' });
-        }
-      }
-
       const [rows] = await pool.query('SELECT id, course_code, title, paper_year, file_name, image_data, created_at FROM past_papers ORDER BY course_code ASC, created_at DESC');
       return res.status(200).json(rows);
     }
@@ -65,17 +55,33 @@ module.exports = async (req, res) => {
       const body = parseBody(req);
       if (body.action === 'upload_past_paper') {
         const fields = ['course_code', 'title', 'paper_year', 'file_name', 'image_data'];
-        if (fields.some(field => !requiredText(body[field]))) {
+        const pageImages = Array.isArray(body.image_data) ? body.image_data : [body.image_data];
+        const pageNames = Array.isArray(body.file_name) ? body.file_name : pageImages.map(() => body.file_name);
+        if (fields.slice(0, 3).some(field => !requiredText(body[field])) || !pageImages.length || pageImages.some(image => !requiredText(image)) || pageNames.some(name => !requiredText(name))) {
           return res.status(400).json({ error: 'Subject, title, academic year, file name, and an image are required.' });
         }
-        if (!/^data:image\/[a-z0-9.+-]+;base64,/.test(body.image_data)) {
-          return res.status(400).json({ error: 'The selected file must be a valid image.' });
+        if (pageImages.some(image => !/^data:image\/[a-z0-9.+-]+;base64,/.test(image))) {
+          return res.status(400).json({ error: 'Every selected file must be a valid image.' });
         }
-        const [result] = await pool.query(
-          'INSERT INTO past_papers (course_code, title, paper_year, file_name, image_data) VALUES (?, ?, ?, ?, ?)',
-          [body.course_code.trim(), body.title.trim(), body.paper_year.trim(), body.file_name.trim(), body.image_data]
-        );
-        return res.status(201).json({ success: true, id: result.insertId });
+        const connection = await pool.getConnection();
+        try {
+          await connection.beginTransaction();
+          const ids = [];
+          for (let index = 0; index < pageImages.length; index += 1) {
+            const [result] = await connection.query(
+              'INSERT INTO past_papers (course_code, title, paper_year, file_name, image_data) VALUES (?, ?, ?, ?, ?)',
+              [body.course_code.trim(), body.title.trim(), body.paper_year.trim(), String(pageNames[index]).trim(), pageImages[index]]
+            );
+            ids.push(result.insertId);
+          }
+          await connection.commit();
+          return res.status(201).json({ success: true, ids, pages: ids.length });
+        } catch (error) {
+          await connection.rollback();
+          throw error;
+        } finally {
+          connection.release();
+        }
       }
       if (body.action === 'delete_past_paper') {
         if (!body.id) return res.status(400).json({ error: 'Document ID is required.' });

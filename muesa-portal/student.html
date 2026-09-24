@@ -67,13 +67,14 @@
       <section class="panel password-panel portal-section" id="securitySection"><h2>Security</h2><p class="muted">Use a password you do not share with anyone else.</p><form class="form" id="passwordForm"><label>Current password<input id="currentPassword" type="password" required autocomplete="current-password"></label><label>New password<input id="newPassword" type="password" required minlength="3" autocomplete="new-password"></label><label>Confirm new password<input id="confirmPassword" type="password" required minlength="3" autocomplete="new-password"></label><button class="btn btn-primary" type="submit">Update password</button></form><p class="message" id="passwordMessage" role="alert"></p></section>
     </section>
   </main>
-  <div class="vault-viewer" id="vaultViewer" hidden><div class="vault-viewer-inner"><div class="vault-viewer-head"><div><h2 id="viewerTitle"></h2><p class="muted" id="viewerFileName"></p></div><button class="btn btn-quiet" id="closeViewer">Close</button></div><canvas id="paperCanvas" aria-label="Watermarked document viewer"></canvas></div></div>
+  <div class="vault-viewer" id="vaultViewer" hidden><div class="vault-viewer-inner"><div class="vault-viewer-head"><div><h2 id="viewerTitle"></h2><p class="muted" id="viewerFileName"></p></div><div><button class="btn btn-quiet" id="previousPage">Previous</button> <button class="btn btn-quiet" id="nextPage">Next</button> <button class="btn btn-quiet" id="closeViewer">Close</button></div></div><canvas id="paperCanvas" aria-label="Watermarked document viewer"></canvas></div></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.6/JsBarcode.all.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
     const $ = id => document.getElementById(id);
     let student = null;
     let vaultPapers = [];
+    let vaultBooks = [];
     const setMessage = (element, text, success = false) => { element.textContent = text; element.className = `message${success ? ' success' : ''}`; };
     function renderPhoto(photoData) {
       photoData = photoData || student.photo_data || '';
@@ -109,23 +110,23 @@
       $('profileRegNo').textContent = student.reg_no || '-'; $('profileClass').textContent = student.student_class || '-'; $('profileYear').textContent = student.year || '-'; $('profilePayment').textContent = student.payment_type || '-';
       $('previewName').textContent = student.student_name || student.full_name || '-'; $('previewRegNo').textContent = student.reg_no || '-'; renderPhoto(student.photo_data); loadVault();
     }
-    function groupPapers(papers) { return papers.reduce((groups, paper) => { (groups[paper.course_code] ||= []).push(paper); return groups; }, {}); }
+    function groupPapers(papers) { const groups = {}; papers.forEach(paper => { const subject = paper.course_code; const key = `${paper.title}|${paper.paper_year}`; groups[subject] ||= {}; groups[subject][key] ||= { ...paper, pages: [] }; groups[subject][key].pages.push(paper); }); return groups; }
     function renderVault() {
       const query = $('vaultSearch').value.trim().toLowerCase();
       const filtered = vaultPapers.filter(paper => `${paper.course_code} ${paper.title} ${paper.paper_year}`.toLowerCase().includes(query));
-      const groups = groupPapers(filtered); const entries = Object.entries(groups);
-      $('vaultList').innerHTML = entries.length ? entries.map(([subject, papers]) => `<details class="vault-subject" open><summary>${escapeHtml(subject)} (${papers.length})</summary><div class="vault-documents">${papers.map(paper => `<div class="vault-document"><div><strong>${escapeHtml(paper.title)}</strong><small>${escapeHtml(paper.paper_year)} · ${escapeHtml(paper.file_name)}</small></div><button class="btn btn-primary view-paper" data-id="${paper.id}">View</button></div>`).join('')}</div></details>`).join('') : '<p class="muted">No matching documents found.</p>';
+      const groups = groupPapers(filtered); vaultBooks = []; const entries = Object.entries(groups);
+      $('vaultList').innerHTML = entries.length ? entries.map(([subject, papers]) => `<details class="vault-subject" open><summary>${escapeHtml(subject)} (${Object.keys(papers).length})</summary><div class="vault-documents">${Object.values(papers).map(paper => { const index = vaultBooks.push(paper) - 1; return `<div class="vault-document"><div><strong>${escapeHtml(paper.title)}</strong><small>${escapeHtml(paper.paper_year)} · ${paper.pages.length} page(s)</small></div><button class="btn btn-primary view-paper" data-index="${index}">View</button></div>`; }).join('')}</div></details>`).join('') : '<p class="muted">No matching documents found.</p>';
     }
     function escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[character])); }
     async function loadVault() {
       try { const response = await fetch(`/api/index_2?action=get_past_papers&reg_no=${encodeURIComponent(student.reg_no)}`); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Unable to load the document vault.'); vaultPapers = data; renderVault(); }
-      catch (error) { vaultPapers = []; $('vaultList').innerHTML = ''; setMessage($('vaultMessage'), `${error.message} Access is restricted to paid members.`); }
+      catch (error) { vaultPapers = []; $('vaultList').innerHTML = ''; setMessage($('vaultMessage'), error.message); }
     }
     function openPaper(paper) {
-      const image = new Image(); image.onload = () => { const canvas = $('paperCanvas'); const scale = Math.min(1, 1500 / image.width); canvas.width = Math.max(1, image.width * scale); canvas.height = Math.max(1, image.height * scale); const context = canvas.getContext('2d'); context.drawImage(image, 0, 0, canvas.width, canvas.height); context.save(); context.globalAlpha = .25; context.fillStyle = '#123047'; context.font = `bold ${Math.max(18, canvas.width / 22)}px sans-serif`; context.rotate(-Math.PI / 6); for (let y = -canvas.height; y < canvas.height * 2; y += 100) for (let x = -canvas.width; x < canvas.width * 2; x += 270) context.fillText(`MUESA • ${student.reg_no}`, x, y); context.restore(); $('vaultViewer').hidden = false; }; image.src = paper.image_data; $('viewerTitle').textContent = `${paper.course_code}: ${paper.title}`; $('viewerFileName').textContent = `${paper.paper_year} · ${paper.file_name}`;
+      let pageIndex = 0; const image = new Image(); const drawPage = () => { image.onload = () => { const canvas = $('paperCanvas'); const scale = Math.min(1, 1500 / image.width); canvas.width = Math.max(1, image.width * scale); canvas.height = Math.max(1, image.height * scale); const context = canvas.getContext('2d'); context.drawImage(image, 0, 0, canvas.width, canvas.height); context.save(); context.globalAlpha = .25; context.fillStyle = '#123047'; context.font = `bold ${Math.max(18, canvas.width / 22)}px sans-serif`; context.rotate(-Math.PI / 6); for (let y = -canvas.height; y < canvas.height * 2; y += 100) for (let x = -canvas.width; x < canvas.width * 2; x += 270) context.fillText(`MUESA - ${student.reg_no}`, x, y); context.restore(); $('viewerFileName').textContent = `${paper.paper_year} · Page ${pageIndex + 1} of ${paper.pages.length} · ${paper.pages[pageIndex].file_name}`; $('previousPage').disabled = pageIndex === 0; $('nextPage').disabled = pageIndex === paper.pages.length - 1; $('vaultViewer').hidden = false; }; image.src = paper.pages[pageIndex].image_data; }; $('previousPage').onclick = () => { if (pageIndex > 0) { pageIndex -= 1; drawPage(); } }; $('nextPage').onclick = () => { if (pageIndex < paper.pages.length - 1) { pageIndex += 1; drawPage(); } }; $('viewerTitle').textContent = `${paper.course_code}: ${paper.title}`; drawPage();
     }
     $('vaultSearch').addEventListener('input', renderVault);
-    $('vaultList').addEventListener('click', event => { const button = event.target.closest('.view-paper'); if (button) openPaper(vaultPapers.find(paper => String(paper.id) === button.dataset.id)); });
+    $('vaultList').addEventListener('click', event => { const button = event.target.closest('.view-paper'); if (button) openPaper(vaultBooks[Number(button.dataset.index)]); });
     $('closeViewer').addEventListener('click', () => { $('vaultViewer').hidden = true; $('paperCanvas').width = 1; $('paperCanvas').height = 1; });
     $('vaultViewer').addEventListener('click', event => { if (event.target === $('vaultViewer')) $('closeViewer').click(); });
     document.addEventListener('keydown', event => { if (!$('vaultViewer').hidden && (event.key === 'PrintScreen' || (event.ctrlKey && ['s', 'p', 'u', 'c'].includes(event.key.toLowerCase())))) { event.preventDefault(); event.stopPropagation(); } });
