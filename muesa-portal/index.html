@@ -153,6 +153,7 @@
     tbody tr:nth-child(even) { background-color: #f8fafc; }
     tbody tr:hover { background-color: #f1f5f9; }
     .record-photo { width: 42px; height: 52px; max-width: 42px; max-height: 52px; object-fit: cover; border: 1px solid var(--border-color); border-radius: 4px; display: block; }
+    .collection-table-wrap { overflow-x: auto; } .collection-feedback { min-height: 20px; margin: 10px 0 0; color: #9b2c2c; font-size: 13px; } .collection-feedback.success { color: #177245; }
 
     /* USER BADGE */
     #userBadge {
@@ -212,6 +213,21 @@
         <button class="btn-logout" id="logoutBtn">Sign Out</button>
       </div>
     </div>
+
+    <section class="card" id="idCollectionAdmin">
+      <h3>ID Card Collection</h3>
+      <p>Enter the student's registration number and the one-time code they show you to confirm handover.</p>
+      <form id="collectionVerifyForm">
+        <div class="form-grid">
+          <div class="form-group"><label for="collectionRegNo">Student registration number</label><input id="collectionRegNo" required autocomplete="off"></div>
+          <div class="form-group"><label for="collectionOtp">Six-digit student code</label><input id="collectionOtp" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code"></div>
+        </div>
+        <button class="btn-action" type="submit" style="margin-top:14px">Confirm ID handover</button>
+      </form>
+      <p class="collection-feedback" id="collectionFeedback" role="status"></p>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn-action" id="refreshCollectionRecords" type="button">Refresh records</button></div>
+      <div class="collection-table-wrap"><table><thead><tr><th>Student</th><th>Registration number</th><th>Card number</th><th>Status</th><th>Collection date</th><th>Recorded by</th></tr></thead><tbody id="collectionRows"><tr><td colspan="6">Loading printed cards...</td></tr></tbody></table></div>
+    </section>
 
     <!-- STUDENT PAYMENT FORM -->
     <div class="card">
@@ -389,6 +405,7 @@
   <script>
     let currentUser = null;
     let currentRole = null;
+    let currentStaffPassword = null;
     let loginMode = 'student';
     let allRecords = [];
     let studentPhotos = new Map();
@@ -449,6 +466,7 @@
         if (res.ok && data.success) {
           currentUser = data.user;
           currentRole = data.role;
+          currentStaffPassword = password;
 
           document.getElementById('loginOverlay').style.display = 'none';
           document.getElementById('appContent').style.display = 'block';
@@ -462,6 +480,7 @@
             document.getElementById('reportsSection').style.display = 'none';
           }
           document.getElementById('pastPapersAdminLink').style.display = 'inline-block';
+          loadIdCollectionRecords();
         } else {
           alert(data.error || 'Login failed.');
         }
@@ -473,6 +492,35 @@
     // LOGOUT
     document.getElementById('logoutBtn').addEventListener('click', () => {
       location.reload();
+    });
+
+    function escapeCollectionHtml(value) {
+      return String(value || '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
+    }
+    function formatCollectionDate(value) {
+      return value ? new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '-';
+    }
+    async function loadIdCollectionRecords() {
+      try {
+        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_id_collection_records', username: currentUser, password: currentStaffPassword }) });
+        const records = await response.json();
+        if (!response.ok || !Array.isArray(records)) throw new Error(records.error || 'Unable to load card collection records.');
+        document.getElementById('collectionRows').innerHTML = records.length ? records.map(record => `<tr><td>${escapeCollectionHtml(record.student_name || '-')}</td><td>${escapeCollectionHtml(record.reg_no)}</td><td>${escapeCollectionHtml(record.card_number || '-')}</td><td>${record.collected_at ? 'Collected' : 'Ready for collection'}</td><td>${formatCollectionDate(record.collected_at)}</td><td>${escapeCollectionHtml(record.collected_by || '-')}</td></tr>`).join('') : '<tr><td colspan="6">No printed ID cards are recorded yet.</td></tr>';
+      } catch (error) { document.getElementById('collectionRows').innerHTML = `<tr><td colspan="6">${escapeCollectionHtml(error.message)}</td></tr>`; }
+    }
+    document.getElementById('refreshCollectionRecords').addEventListener('click', loadIdCollectionRecords);
+    document.getElementById('collectionVerifyForm').addEventListener('submit', async event => {
+      event.preventDefault();
+      const feedback = document.getElementById('collectionFeedback');
+      feedback.className = 'collection-feedback'; feedback.textContent = 'Verifying code...';
+      try {
+        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'verify_id_collection_otp', username: currentUser, password: currentStaffPassword, reg_no: document.getElementById('collectionRegNo').value.trim(), code: document.getElementById('collectionOtp').value.trim() }) });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to confirm ID collection.');
+        feedback.className = 'collection-feedback success'; feedback.textContent = `${data.student_name} (${data.reg_no}) marked collected on ${formatCollectionDate(data.collected_at)}.`;
+        document.getElementById('collectionOtp').value = '';
+        await loadIdCollectionRecords();
+      } catch (error) { feedback.textContent = error.message; }
     });
 
     // SUBMIT RECORD WITH ANIMATED SPINNER

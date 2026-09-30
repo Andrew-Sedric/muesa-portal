@@ -34,6 +34,7 @@
     .id-preview-qr canvas, .id-preview-qr img { width: 100% !important; height: 100% !important; }
     .id-preview-verify { position: absolute; right: 4%; bottom: 3%; width: 18%; padding: 1%; color: white; background: #001ed2; border-radius: 4px; text-align: center; font-size: clamp(7px, 1vw, 10px); font-weight: 700; }
     .vault-panel { margin-top: 20px; padding: 24px; } .vault-tools { display: flex; gap: 10px; margin: 16px 0; } .vault-tools input { flex: 1; } .vault-subject { margin-top: 14px; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; } .vault-subject summary { padding: 13px 15px; color: var(--navy); background: #f3f7f6; cursor: pointer; font-weight: 800; } .vault-documents { display: grid; gap: 8px; padding: 12px; } .vault-document { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px; border: 1px solid var(--line); border-radius: 4px; } .vault-document strong, .vault-document small { display: block; } .vault-document small { color: var(--muted); margin-top: 3px; } .vault-viewer { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(6,29,55,.86); } .vault-viewer[hidden] { display: none; } .vault-viewer-inner { width: min(100%, 980px); max-height: 100%; overflow: auto; padding: 18px; background: white; border-radius: 8px; } .vault-viewer canvas { display: block; width: 100%; height: auto; max-height: 76vh; object-fit: contain; background: #f4f7f6; } .vault-viewer-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; margin-bottom: 12px; }
+    .collection-panel { margin-top: 20px; padding: 24px; } .collection-code { display: inline-block; margin: 8px 0 14px; padding: 10px 16px; border: 1px dashed var(--teal); border-radius: 5px; color: var(--navy); background: #f0faf7; font: 800 28px/1.2 monospace; letter-spacing: 4px; user-select: text; } .collection-status { margin: 14px 0; }
     @media (max-width: 650px) { .shell { width: min(100% - 20px, 980px); padding-top: 12px; } .topbar { align-items: flex-start; flex-direction: column; } .top-actions { width: 100%; } .top-actions .btn { flex: 1; text-align: center; } .profile-grid { grid-template-columns: 1fr; padding: 20px; } .profile-photo { width: 150px; height: 185px; } .details { grid-template-columns: 1fr; } .login { margin-top: 5vh; padding: 24px; } }
   </style>
 </head>
@@ -56,13 +57,14 @@
         <div class="brand"><img src="muesa bg.png" alt="MUESA crest"><div><div class="eyebrow">MUESA student portal</div><h2>My student profile</h2></div></div>
         <div class="top-actions"><a class="btn btn-quiet" href="index.html">Main portal</a><button class="btn btn-primary" id="logoutBtn">Sign out</button></div>
       </header>
-      <nav class="portal-menu" aria-label="Student portal sections"><button class="active" data-section="profileSection">Profile</button><button data-section="photoSection">Profile photo</button><button data-section="idSection">ID card preview</button><button data-section="vaultSection">Past papers</button><button data-section="securitySection">Security</button></nav>
+      <nav class="portal-menu" aria-label="Student portal sections"><button class="active" data-section="profileSection">Profile</button><button data-section="photoSection">Profile photo</button><button data-section="idSection">ID card preview</button><button data-section="collectionSection">Collect ID</button><button data-section="vaultSection">Past papers</button><button data-section="securitySection">Security</button></nav>
       <section class="panel profile-grid portal-section active" id="profileSection">
         <div><div id="profilePhotoBox" class="photo-empty">No Picture</div><div id="photoStatus" class="photo-status">No Picture</div></div>
         <div><h1 id="profileName"></h1><p class="muted">Your registered student information</p><div class="details"><div class="detail"><b>Registration number</b><span id="profileRegNo"></span></div><div class="detail"><b>Class / Semester</b><span id="profileClass"></span></div><div class="detail"><b>Year</b><span id="profileYear"></span></div><div class="detail"><b>Payment type</b><span id="profilePayment"></span></div></div></div>
       </section>
       <section class="panel photo-panel portal-section" id="photoSection"><h2>Profile photo</h2><p class="muted">Upload a clear passport-style photo. Your current photo stays visible while a replacement is reviewed.</p><form class="form" id="photoForm"><label>Choose profile photo<input id="photoInput" type="file" accept="image/jpeg,image/png,image/webp" required></label><button class="btn btn-primary" type="submit">Submit photo for approval</button></form><p class="message" id="profileMessage" role="alert"></p></section>
       <section class="panel id-preview-panel portal-section" id="idSection" oncontextmenu="return false"><h2>My ID Card Preview</h2><p class="muted">This preview is for viewing only. Your card becomes available after photo approval.</p><div class="id-preview" id="idPreview"><header class="id-preview-head"><img src="mru logo.png" alt="Muteesa I Royal University logo"><div><strong><em>MUTEESA I</em> <span>ROYAL UNIVERSITY</span></strong><span>EDUCATION STUDENTS ASSOCIATION</span></div><img src="muesa bg.png" alt="MUESA association crest"></header><div class="id-preview-main"><div class="id-preview-photo-column"><div id="previewPhoto" class="id-preview-photo empty">No Picture</div><div class="id-preview-idno">ID NO:<strong id="previewIdNumber"></strong><svg id="previewBarcode" class="id-preview-barcode" role="img" aria-label="Student barcode"></svg></div></div><div class="id-preview-info"><h2><span id="previewName"></span><small style="display:block;color:#e21c11;font-size:70%;font-weight:normal;margin-top:1%">STUDENT ID CARD</small></h2><p><b>DEPARTMENT</b><br>Education Students Association</p><p><b>GENDER</b><br><span id="previewGender">FEMALE</span></p><p><b>STUDENT NUMBER</b><br><span id="previewRegNo"></span></p><div class="id-preview-dates"><div><b>ISSUE DATE</b><span>01/08/2026</span></div><div><b>EXPIRY DATE</b><span>01/01/2030</span></div></div><div id="previewQr" class="id-preview-qr"></div><div class="id-preview-verify">SCAN TO<br>VERIFY</div></div></div></div></section>
+      <section class="panel collection-panel portal-section" id="collectionSection"><h2>ID card collection</h2><p class="muted">When staff is ready to hand over your printed card, generate a one-time code and read it to them.</p><p class="collection-status" id="collectionStatus" role="status">Checking card status...</p><div class="collection-code" id="collectionCode" hidden></div><p class="muted" id="collectionCodeHint" hidden></p><button class="btn btn-primary" id="collectIdBtn" type="button" disabled>Collect ID</button></section>
       <section class="panel vault-panel portal-section" id="vaultSection" oncontextmenu="return false"><h2>Past Papers &amp; Document Vault</h2><p class="muted">Available to paid association members. Documents are view-only and watermarked.</p><div class="vault-tools"><input id="vaultSearch" type="search" placeholder="Search subject, title, or year" aria-label="Search past papers"></div><p class="message" id="vaultMessage" role="alert"></p><div id="vaultList"><p class="muted">Loading documents...</p></div></section>
       <section class="panel password-panel portal-section" id="securitySection"><h2>Security</h2><p class="muted">Use a password you do not share with anyone else.</p><form class="form" id="passwordForm"><label>Current password<input id="currentPassword" type="password" required autocomplete="current-password"></label><label>New password<input id="newPassword" type="password" required minlength="3" autocomplete="new-password"></label><label>Confirm new password<input id="confirmPassword" type="password" required minlength="3" autocomplete="new-password"></label><button class="btn btn-primary" type="submit">Update password</button></form><p class="message" id="passwordMessage" role="alert"></p></section>
     </section>
@@ -75,6 +77,8 @@
     let student = null;
     let vaultPapers = [];
     let vaultBooks = [];
+    let collectionCountdown = null;
+    let collectionStatusPoll = null;
     const setMessage = (element, text, success = false) => { element.textContent = text; element.className = `message${success ? ' success' : ''}`; };
     function renderPhoto(photoData) {
       photoData = photoData || student.photo_data || '';
@@ -108,8 +112,50 @@
       $('loginView').style.display = 'none'; $('profileView').style.display = 'block';
       $('profileName').textContent = student.student_name || student.full_name || '-';
       $('profileRegNo').textContent = student.reg_no || '-'; $('profileClass').textContent = student.student_class || '-'; $('profileYear').textContent = student.year || '-'; $('profilePayment').textContent = student.payment_type || '-';
-      $('previewName').textContent = student.student_name || student.full_name || '-'; $('previewRegNo').textContent = student.reg_no || '-'; renderPhoto(student.photo_data); loadVault();
+      $('previewName').textContent = student.student_name || student.full_name || '-'; $('previewRegNo').textContent = student.reg_no || '-'; renderPhoto(student.photo_data); loadVault(); loadCollectionStatus();
+      if (collectionStatusPoll) clearInterval(collectionStatusPoll);
+      collectionStatusPoll = setInterval(() => loadCollectionStatus(true), 15000);
     }
+    function formatCollectionDate(value) { return new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }); }
+    function stopCollectionCountdown() { if (collectionCountdown) clearInterval(collectionCountdown); collectionCountdown = null; }
+    function startCollectionCountdown(seconds, labelPrefix, onFinish) {
+      stopCollectionCountdown(); let remaining = Math.max(0, Number(seconds) || 0);
+      const update = () => { if (remaining <= 0) { stopCollectionCountdown(); onFinish(); return; } const minutes = String(Math.floor(remaining / 60)).padStart(2, '0'); const secondsLeft = String(remaining % 60).padStart(2, '0'); $('collectIdBtn').textContent = `${labelPrefix} ${minutes}:${secondsLeft}`; remaining -= 1; };
+      update(); collectionCountdown = setInterval(update, 1000);
+    }
+    async function loadCollectionStatus(preserveVisibleCode = false) {
+      try {
+        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_id_collection_status', reg_no: student.reg_no, password: sessionPassword() }) });
+        const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Unable to check card collection status.');
+        if (data.collected_at) {
+          stopCollectionCountdown(); $('collectionCode').hidden = true; $('collectionCodeHint').hidden = true; $('collectionStatus').textContent = 'Your handover has been recorded.'; $('collectIdBtn').hidden = false; $('collectIdBtn').disabled = true; $('collectIdBtn').textContent = `ID collected on ${formatCollectionDate(data.collected_at)}`; return;
+        }
+        if (preserveVisibleCode && !$('collectionCode').hidden) return;
+        stopCollectionCountdown(); $('collectionCode').hidden = true; $('collectionCodeHint').hidden = true; $('collectIdBtn').hidden = false;
+        if (!data.printed_at) {
+          $('collectionStatus').textContent = 'Your ID card has not been marked ready for collection yet.'; $('collectIdBtn').disabled = true; $('collectIdBtn').textContent = 'Collect ID'; return;
+        }
+        $('collectionStatus').textContent = 'Your ID card is ready for collection.'; $('collectIdBtn').disabled = false;
+        if (data.otp_status === 'PENDING' && Number(data.otp_seconds_to_expiry) > 0) {
+          $('collectionCodeHint').textContent = 'A code was already generated and is only shown once. Generate a replacement if you no longer have it.'; $('collectionCodeHint').hidden = false;
+          const cooldown = Math.max(0, 30 - Number(data.otp_seconds_since_request));
+          if (cooldown) { $('collectIdBtn').disabled = true; startCollectionCountdown(cooldown, 'Replace code in', () => { $('collectIdBtn').disabled = false; $('collectIdBtn').textContent = 'Generate replacement code'; }); }
+          else $('collectIdBtn').textContent = 'Generate replacement code';
+        } else {
+          $('collectIdBtn').textContent = data.otp_status === 'EXPIRED' || data.otp_status === 'LOCKED' ? 'Generate new code' : 'Collect ID';
+        }
+      } catch (error) { $('collectionStatus').textContent = error.message; $('collectIdBtn').disabled = true; }
+    }
+    $('collectIdBtn').addEventListener('click', async () => {
+      $('collectIdBtn').disabled = true;
+      try {
+        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'request_id_collection_otp', reg_no: student.reg_no, password: sessionPassword() }) });
+        const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Unable to generate a collection code.');
+        $('collectionCode').textContent = data.code; $('collectionCode').hidden = false; $('collectionCodeHint').hidden = false; $('collectionCodeHint').textContent = 'Read this code to staff. It expires in five minutes and can only be used once.';
+        $('collectionStatus').textContent = 'Show this code to the staff member handing over your card.';
+        startCollectionCountdown(data.expires_in_seconds, 'Code expires in', () => { $('collectionCode').hidden = true; loadCollectionStatus(); });
+      } catch (error) { $('collectionStatus').textContent = error.message; $('collectIdBtn').disabled = false; await loadCollectionStatus(); }
+    });
     function groupPapers(papers) { const groups = {}; papers.forEach(paper => { const subject = paper.course_code; const key = `${paper.title}|${paper.paper_year}`; groups[subject] ||= {}; groups[subject][key] ||= { ...paper, pages: [] }; groups[subject][key].pages.push(paper); }); return groups; }
     function renderVault() {
       const query = $('vaultSearch').value.trim().toLowerCase();
@@ -157,7 +203,7 @@
       } catch (error) { setMessage($('passwordMessage'), error.message); }
     });
     function readImage(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); }); }
-    $('logoutBtn').addEventListener('click', () => { sessionStorage.removeItem('muesaStudentSession'); student = null; $('profileView').style.display = 'none'; $('loginView').style.display = 'block'; $('loginPassword').value = '123'; setMessage($('loginMessage'), ''); });
+    $('logoutBtn').addEventListener('click', () => { sessionStorage.removeItem('muesaStudentSession'); student = null; stopCollectionCountdown(); if (collectionStatusPoll) clearInterval(collectionStatusPoll); $('profileView').style.display = 'none'; $('loginView').style.display = 'block'; $('loginPassword').value = '123'; setMessage($('loginMessage'), ''); });
     document.addEventListener('contextmenu', event => { if (event.target.closest('#profileView')) event.preventDefault(); });
     async function restoreStudentSession() {
       const savedSession = JSON.parse(sessionStorage.getItem('muesaStudentSession') || 'null');
