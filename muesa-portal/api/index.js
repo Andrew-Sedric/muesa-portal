@@ -137,6 +137,13 @@ async function ensureIdCollectionTables() {
       expires_at DATETIME NULL
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS id_card_collection_staff_limits (
+      staff_username VARCHAR(100) NOT NULL PRIMARY KEY,
+      attempts INT NOT NULL DEFAULT 0,
+      window_started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 }
 
 function staffRoleFor(username, password) {
@@ -150,6 +157,24 @@ function hashCollectionOtp(code) {
   const secret = process.env.ID_COLLECTION_OTP_SECRET || process.env.TIDB_PASSWORD;
   if (!secret) throw new Error('ID_COLLECTION_OTP_SECRET must be configured.');
   return crypto.createHmac('sha256', secret).update(code).digest('hex');
+}
+
+async function collectionOtpRateLimit(username) {
+  const [rows] = await pool.query(`SELECT attempts, TIMESTAMPDIFF(SECOND, window_started_at, CURRENT_TIMESTAMP) AS seconds_in_window FROM id_card_collection_staff_limits WHERE staff_username = ?`, [username]);
+  if (rows.length && Number(rows[0].attempts) >= 10 && Number(rows[0].seconds_in_window) < 300) {
+    return { limited: true, retryAfter: 300 - Number(rows[0].seconds_in_window) };
+  }
+  return { limited: false };
+}
+
+async function recordFailedCollectionOtp(username) {
+  await pool.query(`
+    INSERT INTO id_card_collection_staff_limits (staff_username, attempts, window_started_at)
+    VALUES (?, 1, CURRENT_TIMESTAMP)
+    ON DUPLICATE KEY UPDATE
+      attempts = IF(TIMESTAMPDIFF(SECOND, window_started_at, CURRENT_TIMESTAMP) >= 300, 1, attempts + 1),
+      window_started_at = IF(TIMESTAMPDIFF(SECOND, window_started_at, CURRENT_TIMESTAMP) >= 300, CURRENT_TIMESTAMP, window_started_at)
+  `, [username]);
 }
 
 module.exports = async (req, res) => {
@@ -318,45 +343,55 @@ module.exports = async (req, res) => {
         return res.status(200).json(rows);
       }
 
-      if (action === 'verify_id_collection_otp') {
+      if (action === 'lookup_id_collection_otp' || action === 'confirm_id_collection_otp') {
         const staffRole = staffRoleFor(username, password);
         if (!staffRole) return res.status(401).json({ error: 'Staff authentication failed.' });
-        if (!body.reg_no || !/^\d{6}$/.test(String(body.code || ''))) return res.status(400).json({ error: 'Student number and six-digit code are required.' });
+        if (!/^\d{6}$/.test(String(body.code || ''))) return res.status(400).json({ error: 'A six-digit code is required.' });
         await ensureIdCollectionTables();
         await pool.query(`CREATE TABLE IF NOT EXISTS student_card_prints (student_id BIGINT NOT NULL PRIMARY KEY, printed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
+        const rateLimit = await collectionOtpRateLimit(username);
+        if (rateLimit.limited) return res.status(429).json({ error: 'Too many incorrect code attempts. Please wait before trying again.', retry_after: rateLimit.retryAfter });
+        const submittedHash = hashCollectionOtp(String(body.code));
         const connection = await pool.getConnection();
         try {
           await connection.beginTransaction();
-          const [students] = await connection.query(`
-            SELECT students.id, students.student_name, students.reg_no, students.card_number, prints.printed_at
-            FROM students LEFT JOIN student_card_prints prints ON prints.student_id = students.id
-            WHERE LOWER(students.reg_no) = LOWER(?) LIMIT 1 FOR UPDATE
-          `, [body.reg_no.trim()]);
-          if (!students.length) { await connection.rollback(); return res.status(404).json({ error: 'Student not found.' }); }
-          const student = students[0];
-          if (!student.printed_at) { await connection.rollback(); return res.status(409).json({ error: "This student's ID card has not been marked ready for collection." }); }
-          const [collections] = await connection.query('SELECT collected_at FROM id_card_collections WHERE student_id = ?', [student.id]);
-          if (collections.length) { await connection.rollback(); return res.status(409).json({ error: 'This ID card has already been collected.', collected_at: collections[0].collected_at }); }
-          const [challenges] = await connection.query(`SELECT *, TIMESTAMPDIFF(SECOND, CURRENT_TIMESTAMP, expires_at) AS seconds_left FROM id_card_collection_otps WHERE student_id = ? FOR UPDATE`, [student.id]);
-          if (!challenges.length || challenges[0].status !== 'PENDING') { await connection.rollback(); return res.status(400).json({ error: 'There is no active collection code for this student.' }); }
-          const challenge = challenges[0];
-          if (Number(challenge.seconds_left) <= 0) {
+          const [matches] = await connection.query(`
+            SELECT students.id, students.student_name, students.reg_no, students.card_number,
+              students.student_class, students.year, prints.printed_at,
+              challenges.status AS otp_status,
+              TIMESTAMPDIFF(SECOND, CURRENT_TIMESTAMP, challenges.expires_at) AS seconds_left,
+              collections.collected_at
+            FROM id_card_collection_otps challenges
+            INNER JOIN students ON students.id = challenges.student_id
+            LEFT JOIN student_card_prints prints ON prints.student_id = students.id
+            LEFT JOIN id_card_collections collections ON collections.student_id = students.id
+            WHERE challenges.otp_hash = ? AND challenges.status = 'PENDING'
+            LIMIT 2 FOR UPDATE
+          `, [submittedHash]);
+          if (!matches.length) {
+            await connection.rollback();
+            await recordFailedCollectionOtp(username);
+            return res.status(400).json({ error: 'No active student collection matches that code.' });
+          }
+          if (matches.length > 1) {
+            await connection.rollback();
+            return res.status(409).json({ error: 'This code is ambiguous. Ask the student to generate a new code.' });
+          }
+          const student = matches[0];
+          if (Number(student.seconds_left) <= 0) {
             await connection.query(`UPDATE id_card_collection_otps SET status = 'EXPIRED' WHERE student_id = ?`, [student.id]);
             await connection.query(`INSERT INTO id_card_collection_events (student_id, reg_no, card_number, event_type, actor) VALUES (?, ?, ?, 'OTP_EXPIRED', ?)`, [student.id, student.reg_no, student.card_number, username]);
             await connection.commit();
             return res.status(410).json({ error: 'The collection code has expired. Ask the student to generate a new one.' });
           }
-          if (Number(challenge.attempts) >= 5) { await connection.rollback(); return res.status(429).json({ error: 'Too many attempts. The student must generate a new code.' }); }
-          const submittedHash = hashCollectionOtp(String(body.code));
-          const validCode = crypto.timingSafeEqual(Buffer.from(submittedHash), Buffer.from(challenge.otp_hash));
-          if (!validCode) {
-            const attempts = Number(challenge.attempts) + 1;
-            const status = attempts >= 5 ? 'LOCKED' : 'PENDING';
-            await connection.query('UPDATE id_card_collection_otps SET attempts = ?, status = ? WHERE student_id = ?', [attempts, status, student.id]);
-            await connection.query(`INSERT INTO id_card_collection_events (student_id, reg_no, card_number, event_type, actor) VALUES (?, ?, ?, 'OTP_FAILED', ?)`, [student.id, student.reg_no, student.card_number, username]);
+          if (student.collected_at) { await connection.rollback(); return res.status(409).json({ error: 'This ID card has already been collected.', collected_at: student.collected_at }); }
+          if (!student.printed_at) { await connection.rollback(); return res.status(409).json({ error: "This student's ID card has not been marked ready for collection." }); }
+
+          if (action === 'lookup_id_collection_otp') {
             await connection.commit();
-            return res.status(400).json({ error: attempts >= 5 ? 'Too many incorrect attempts. The student must generate a new code.' : 'Incorrect code. Check the code with the student and try again.', attempts_remaining: Math.max(0, 5 - attempts) });
+            return res.status(200).json({ success: true, student: { student_name: student.student_name, reg_no: student.reg_no, card_number: student.card_number, student_class: student.student_class, year: student.year, printed_at: student.printed_at } });
           }
+
           await connection.query(`UPDATE id_card_collection_otps SET status = 'VERIFIED', verified_at = CURRENT_TIMESTAMP WHERE student_id = ?`, [student.id]);
           await connection.query(`INSERT INTO id_card_collections (student_id, reg_no, card_number, collected_by) VALUES (?, ?, ?, ?)`, [student.id, student.reg_no, student.card_number, username]);
           await connection.query(`INSERT INTO id_card_collection_events (student_id, reg_no, card_number, event_type, actor) VALUES (?, ?, ?, 'COLLECTED', ?)`, [student.id, student.reg_no, student.card_number, username]);

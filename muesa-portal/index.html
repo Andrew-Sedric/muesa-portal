@@ -216,16 +216,20 @@
 
     <section class="card" id="idCollectionAdmin">
       <h3>ID Card Collection</h3>
-      <p>Enter the student's registration number and the one-time code they show you to confirm handover.</p>
+      <p>Enter the one-time code shown by the student. Check the displayed details against their physical ID card before confirming handover.</p>
       <form id="collectionVerifyForm">
-        <div class="form-grid">
-          <div class="form-group"><label for="collectionRegNo">Student registration number</label><input id="collectionRegNo" required autocomplete="off"></div>
-          <div class="form-group"><label for="collectionOtp">Six-digit student code</label><input id="collectionOtp" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code"></div>
-        </div>
-        <button class="btn-action" type="submit" style="margin-top:14px">Confirm ID handover</button>
+        <div class="form-grid"><div class="form-group"><label for="collectionOtp">Six-digit student code</label><input id="collectionOtp" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off"></div></div>
+        <button class="btn-action" type="submit" style="margin-top:14px">Find student</button>
       </form>
       <p class="collection-feedback" id="collectionFeedback" role="status"></p>
+      <div id="collectionCandidate" hidden style="margin:14px 0 0;padding:18px;border:1px solid var(--border-color);border-left:4px solid var(--royal-blue);border-radius:6px;background:#f8fafc">
+        <h3>Confirm student identity</h3>
+        <div class="form-grid"><div><strong>Student name</strong><div id="candidateName"></div></div><div><strong>Registration number</strong><div id="candidateRegNo"></div></div><div><strong>Card number</strong><div id="candidateCardNo"></div></div><div><strong>Class / semester</strong><div id="candidateClass"></div></div><div><strong>Year</strong><div id="candidateYear"></div></div><div><strong>Card status</strong><div>Ready for collection</div></div></div>
+        <p style="margin-top:14px">Verify the displayed student and card details against the physical ID card before continuing.</p>
+        <button class="btn-action" id="confirmCollectionBtn" type="button">Confirm record</button>
+      </div>
       <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn-action" id="refreshCollectionRecords" type="button">Refresh records</button></div>
+      <div class="form-group" style="margin-top:14px"><label for="collectionSearch">Search ID collection records</label><input id="collectionSearch" type="search" placeholder="Name, registration number, card number, status, or staff"></div>
       <div class="collection-table-wrap"><table><thead><tr><th>Student</th><th>Registration number</th><th>Card number</th><th>Status</th><th>Collection date</th><th>Recorded by</th></tr></thead><tbody id="collectionRows"><tr><td colspan="6">Loading printed cards...</td></tr></tbody></table></div>
     </section>
 
@@ -410,6 +414,8 @@
     let allRecords = [];
     let studentPhotos = new Map();
     let editingRecordId = null;
+    let idCollectionRecords = [];
+    let pendingCollectionCode = '';
     const protectedEditFields = ['student_class', 'year', 'phone', 'payment_type', 'amount'];
 
     // TOGGLE CUSTOM NOTE INPUT FIELD
@@ -500,27 +506,56 @@
     function formatCollectionDate(value) {
       return value ? new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '-';
     }
+    function renderIdCollectionRecords() {
+      const query = document.getElementById('collectionSearch').value.trim().toLowerCase();
+      const filtered = idCollectionRecords.filter(record => `${record.student_name || ''} ${record.reg_no || ''} ${record.card_number || ''} ${record.collected_at ? 'collected' : 'ready for collection'} ${record.collected_by || ''}`.toLowerCase().includes(query));
+      document.getElementById('collectionRows').innerHTML = filtered.length ? filtered.map(record => `<tr><td>${escapeCollectionHtml(record.student_name || '-')}</td><td>${escapeCollectionHtml(record.reg_no)}</td><td>${escapeCollectionHtml(record.card_number || '-')}</td><td>${record.collected_at ? 'Collected' : 'Ready for collection'}</td><td>${formatCollectionDate(record.collected_at)}</td><td>${escapeCollectionHtml(record.collected_by || '-')}</td></tr>`).join('') : '<tr><td colspan="6">No matching ID card records.</td></tr>';
+    }
     async function loadIdCollectionRecords() {
       try {
         const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_id_collection_records', username: currentUser, password: currentStaffPassword }) });
         const records = await response.json();
         if (!response.ok || !Array.isArray(records)) throw new Error(records.error || 'Unable to load card collection records.');
-        document.getElementById('collectionRows').innerHTML = records.length ? records.map(record => `<tr><td>${escapeCollectionHtml(record.student_name || '-')}</td><td>${escapeCollectionHtml(record.reg_no)}</td><td>${escapeCollectionHtml(record.card_number || '-')}</td><td>${record.collected_at ? 'Collected' : 'Ready for collection'}</td><td>${formatCollectionDate(record.collected_at)}</td><td>${escapeCollectionHtml(record.collected_by || '-')}</td></tr>`).join('') : '<tr><td colspan="6">No printed ID cards are recorded yet.</td></tr>';
+        idCollectionRecords = records; renderIdCollectionRecords();
       } catch (error) { document.getElementById('collectionRows').innerHTML = `<tr><td colspan="6">${escapeCollectionHtml(error.message)}</td></tr>`; }
     }
     document.getElementById('refreshCollectionRecords').addEventListener('click', loadIdCollectionRecords);
+    document.getElementById('collectionSearch').addEventListener('input', renderIdCollectionRecords);
     document.getElementById('collectionVerifyForm').addEventListener('submit', async event => {
       event.preventDefault();
       const feedback = document.getElementById('collectionFeedback');
-      feedback.className = 'collection-feedback'; feedback.textContent = 'Verifying code...';
+      pendingCollectionCode = ''; document.getElementById('collectionCandidate').hidden = true;
+      feedback.className = 'collection-feedback'; feedback.textContent = 'Looking up code...';
       try {
-        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'verify_id_collection_otp', username: currentUser, password: currentStaffPassword, reg_no: document.getElementById('collectionRegNo').value.trim(), code: document.getElementById('collectionOtp').value.trim() }) });
+        const code = document.getElementById('collectionOtp').value.trim();
+        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'lookup_id_collection_otp', username: currentUser, password: currentStaffPassword, code }) });
         const data = await response.json();
-        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to confirm ID collection.');
-        feedback.className = 'collection-feedback success'; feedback.textContent = `${data.student_name} (${data.reg_no}) marked collected on ${formatCollectionDate(data.collected_at)}.`;
+        if (!response.ok || !data.success || !data.student) throw new Error(data.error || 'Unable to find a student for this code.');
+        pendingCollectionCode = code;
+        document.getElementById('candidateName').textContent = data.student.student_name || '-';
+        document.getElementById('candidateRegNo').textContent = data.student.reg_no || '-';
+        document.getElementById('candidateCardNo').textContent = data.student.card_number || '-';
+        document.getElementById('candidateClass').textContent = data.student.student_class || '-';
+        document.getElementById('candidateYear').textContent = data.student.year || '-';
+        document.getElementById('collectionCandidate').hidden = false;
+        feedback.className = 'collection-feedback success'; feedback.textContent = 'Student found. Check the details against the physical ID card.';
         document.getElementById('collectionOtp').value = '';
+      } catch (error) { pendingCollectionCode = ''; document.getElementById('collectionCandidate').hidden = true; feedback.textContent = error.message; }
+    });
+    document.getElementById('confirmCollectionBtn').addEventListener('click', async () => {
+      if (!pendingCollectionCode) return;
+      const feedback = document.getElementById('collectionFeedback');
+      feedback.className = 'collection-feedback'; feedback.textContent = 'Recording collection...';
+      document.getElementById('confirmCollectionBtn').disabled = true;
+      try {
+        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'confirm_id_collection_otp', username: currentUser, password: currentStaffPassword, code: pendingCollectionCode }) });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to record ID collection.');
+        feedback.className = 'collection-feedback success'; feedback.textContent = `${data.student_name} (${data.reg_no}) marked collected on ${formatCollectionDate(data.collected_at)}.`;
+        pendingCollectionCode = ''; document.getElementById('collectionCandidate').hidden = true;
         await loadIdCollectionRecords();
       } catch (error) { feedback.textContent = error.message; }
+      finally { document.getElementById('confirmCollectionBtn').disabled = false; }
     });
 
     // SUBMIT RECORD WITH ANIMATED SPINNER
