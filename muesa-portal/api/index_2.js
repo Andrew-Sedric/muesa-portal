@@ -19,11 +19,28 @@ async function ensurePastPapersTable() {
       course_code VARCHAR(255) NOT NULL,
       title VARCHAR(255) NOT NULL,
       paper_year VARCHAR(50) NOT NULL,
+      study_year VARCHAR(50) NULL,
+      semester VARCHAR(50) NULL,
       file_name VARCHAR(255) NOT NULL,
       image_data LONGTEXT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  const [columns] = await pool.query(`
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'past_papers'
+      AND COLUMN_NAME IN ('study_year', 'semester')
+  `);
+  const existingColumns = new Set(columns.map(column => column.COLUMN_NAME));
+  for (const [column, definition] of [['study_year', 'VARCHAR(50) NULL'], ['semester', 'VARCHAR(50) NULL']]) {
+    if (existingColumns.has(column)) continue;
+    try {
+      await pool.query(`ALTER TABLE past_papers ADD COLUMN ${column} ${definition}`);
+    } catch (error) {
+      if (error.code !== 'ER_DUP_FIELDNAME' && error.errno !== 1060) throw error;
+    }
+  }
 }
 
 function parseBody(req) {
@@ -47,18 +64,21 @@ module.exports = async (req, res) => {
       const { action, reg_no: regNo } = req.query || {};
       if (action !== 'get_past_papers') return res.status(400).json({ error: 'A valid action is required.' });
 
-      const [rows] = await pool.query('SELECT id, course_code, title, paper_year, file_name, image_data, created_at FROM past_papers ORDER BY course_code ASC, created_at DESC');
+      const [rows] = await pool.query('SELECT id, course_code, title, paper_year, study_year, semester, file_name, image_data, created_at FROM past_papers ORDER BY study_year ASC, semester ASC, course_code ASC, created_at DESC');
       return res.status(200).json(rows);
     }
 
     if (req.method === 'POST') {
       const body = parseBody(req);
       if (body.action === 'upload_past_paper') {
-        const fields = ['course_code', 'title', 'paper_year', 'file_name', 'image_data'];
+        const fields = ['course_code', 'title', 'paper_year', 'study_year', 'semester', 'file_name', 'image_data'];
         const pageImages = Array.isArray(body.image_data) ? body.image_data : [body.image_data];
         const pageNames = Array.isArray(body.file_name) ? body.file_name : pageImages.map(() => body.file_name);
-        if (fields.slice(0, 3).some(field => !requiredText(body[field])) || !pageImages.length || pageImages.some(image => !requiredText(image)) || pageNames.some(name => !requiredText(name))) {
-          return res.status(400).json({ error: 'Subject, title, academic year, file name, and an image are required.' });
+        if (fields.slice(0, 3).some(field => !requiredText(body[field])) || !requiredText(body.study_year) || !requiredText(body.semester) || !pageImages.length || pageNames.length !== pageImages.length || pageImages.some(image => !requiredText(image)) || pageNames.some(name => !requiredText(name))) {
+          return res.status(400).json({ error: 'Study year, semester, subject, title, academic year, file name, and an image are required.' });
+        }
+        if (!['Year 1', 'Year 2', 'Year 3'].includes(body.study_year) || !['Semester 1', 'Semester 2'].includes(body.semester)) {
+          return res.status(400).json({ error: 'Choose a valid study year and semester.' });
         }
         if (pageImages.some(image => !/^data:image\/[a-z0-9.+-]+;base64,/.test(image))) {
           return res.status(400).json({ error: 'Every selected file must be a valid image.' });
@@ -69,8 +89,8 @@ module.exports = async (req, res) => {
           const ids = [];
           for (let index = 0; index < pageImages.length; index += 1) {
             const [result] = await connection.query(
-              'INSERT INTO past_papers (course_code, title, paper_year, file_name, image_data) VALUES (?, ?, ?, ?, ?)',
-              [body.course_code.trim(), body.title.trim(), body.paper_year.trim(), String(pageNames[index]).trim(), pageImages[index]]
+              'INSERT INTO past_papers (course_code, title, paper_year, study_year, semester, file_name, image_data) VALUES (?, ?, ?, ?, ?, ?, ?)',
+              [body.course_code.trim(), body.title.trim(), body.paper_year.trim(), body.study_year, body.semester, String(pageNames[index]).trim(), pageImages[index]]
             );
             ids.push(result.insertId);
           }
