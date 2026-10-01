@@ -179,7 +179,7 @@
     const issueDate = '01/08/2026';
     const expiryDate = '01/01/2030';
     function cardIdFor(student) { return student.card_number || `26/${String(student.id).padStart(3, '0')}`; }
-    function qrPayloadFor(student) { return JSON.stringify({ name: student.student_name || student.full_name || '', studentNumber: student.reg_no || '', idNumber: cardIdFor(student), department: 'Education Students Association', gender: student.gender || student.sex || 'FEMALE', issueDate, expiryDate }); }
+    function qrPayloadFor(student) { return JSON.stringify({ name: student.student_name || student.full_name || '', studentNumber: student.reg_no || '', idNumber: cardIdFor(student), department: 'Education Students Association', gender: student.gender || student.sex || 'Not set', issueDate, expiryDate }); }
 
     async function readImage(file) {
       return new Promise((resolve, reject) => {
@@ -303,7 +303,7 @@
       card.querySelector('#cardPhoto').src = photo.url || photo.photo_data;
       card.querySelector('#cardName').textContent = student.student_name || student.full_name;
       card.querySelector('#cardStudentNumber').textContent = student.reg_no;
-      card.querySelector('#cardGender').textContent = student.gender || student.sex || 'FEMALE';
+      card.querySelector('#cardGender').textContent = student.gender || student.sex || 'Not set';
       card.querySelector('#cardIdNumber').textContent = cardIdFor(student);
       const barcode = card.querySelector('#cardBarcode');
       if (window.JsBarcode) JsBarcode(barcode, student.reg_no || cardIdFor(student), { format: 'CODE128', lineColor: '#080f1b', width: 1.35, height: 29, displayValue: false, margin: 0 });

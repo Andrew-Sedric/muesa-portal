@@ -268,6 +268,17 @@
           </div>
 
           <div class="form-group">
+            <label>Gender</label>
+            <select id="gender" required>
+              <option value="">Select gender</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+              <option value="Prefer not to say">Prefer not to say</option>
+            </select>
+          </div>
+
+          <div class="form-group">
             <label>Email Address (for receipt)</label>
             <input type="email" id="email" placeholder="student@gmail.com">
           </div>
@@ -323,6 +334,7 @@
         <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="phone" checked> Contact</label>
         <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="studentClass" checked> Sem</label>
         <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="year" checked> Year</label>
+        <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="gender" checked> Gender</label>
         <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="type" checked> Type</label>
         <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="amount" checked> Amount</label>
         <label class="print-field-option"><input type="checkbox" class="print-field-checkbox" data-field="regDate" checked> Reg Date</label>
@@ -391,6 +403,7 @@
               <th data-print-field="phone">Phone</th>
               <th data-print-field="studentClass">Sem</th>
               <th data-print-field="year">Year</th>
+              <th data-print-field="gender">Gender</th>
               <th data-print-field="type">Type</th>
               <th data-print-field="amount">Amount (UGX)</th>
               <th data-print-field="regDate">Reg Date</th>
@@ -578,6 +591,7 @@
         reg_no: document.getElementById('reg_no').value,
         student_class: document.getElementById('student_class').value,
         year: document.getElementById('year').value,
+        gender: document.getElementById('gender').value,
         email: document.getElementById('email').value,
         phone: document.getElementById('phone').value,
         payment_type: document.getElementById('payment_type').value,
@@ -631,6 +645,7 @@
       document.getElementById('email').value = record.email || '';
       document.getElementById('student_class').value = record.student_class || '1 sem';
       document.getElementById('year').value = record.year || 'Year 1';
+      document.getElementById('gender').value = record.gender || '';
       document.getElementById('phone').value = record.phone || '';
       document.getElementById('payment_type').value = record.payment_type || 'Subscription';
       document.getElementById('amount').value = record.amount || '';
@@ -736,6 +751,7 @@
             <td data-print-field="phone">${r.phone || '-'}</td>
             <td data-print-field="studentClass">${r.student_class || '-'}</td>
             <td data-print-field="year">${r.year || '-'}</td>
+            <td data-print-field="gender">${r.gender || 'Not set'}</td>
             <td data-print-field="type">${r.payment_type || '-'}</td>
             <td data-print-field="amount">UGX ${Number(r.amount || 0).toLocaleString()}</td>
             <td data-print-field="regDate">${displayDate}</td>

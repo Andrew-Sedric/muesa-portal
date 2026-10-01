@@ -16,6 +16,7 @@ const pool = mysql.createPool({
 
 let passwordMigration;
 let cardNumberMigration;
+let genderMigration;
 async function ensurePasswordColumn() {
   if (!passwordMigration) {
     passwordMigration = (async () => {
@@ -59,6 +60,26 @@ async function ensureCardNumberColumn() {
     })();
   }
   return cardNumberMigration;
+}
+
+async function ensureGenderColumn() {
+  if (!genderMigration) {
+    genderMigration = (async () => {
+      const [columns] = await pool.query(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'students' AND COLUMN_NAME = 'gender'
+      `);
+      if (!columns.length) {
+        try {
+          await pool.query("ALTER TABLE students ADD COLUMN gender VARCHAR(30) NULL");
+        } catch (error) {
+          if (error.code !== 'ER_DUP_FIELDNAME' && error.errno !== 1060) throw error;
+        }
+      }
+    })();
+  }
+  return genderMigration;
 }
 
 async function ensurePhotoTable() {
@@ -189,6 +210,7 @@ module.exports = async (req, res) => {
   try {
     await ensurePasswordColumn();
     await ensureCardNumberColumn();
+    await ensureGenderColumn();
   } catch (error) {
     console.error('Student password migration error:', error);
     return res.status(500).json({ error: 'Unable to prepare student accounts.' });
@@ -562,13 +584,13 @@ module.exports = async (req, res) => {
       }
 
       if (action === 'update_record') {
-        const { id, student_name, reg_no, email } = body;
-        if (!id || !student_name || !reg_no) {
-          return res.status(400).json({ error: 'Record ID, student name, and student number are required.' });
+        const { id, student_name, reg_no, email, gender } = body;
+        if (!id || !student_name || !reg_no || !['Male', 'Female', 'Other', 'Prefer not to say'].includes(gender)) {
+          return res.status(400).json({ error: 'Record ID, student name, student number, and a valid gender are required.' });
         }
         const [result] = await pool.query(
-          'UPDATE students SET student_name = ?, reg_no = ?, email = ? WHERE id = ?',
-          [student_name.trim(), reg_no.trim(), email ? email.trim() : null, id]
+          'UPDATE students SET student_name = ?, reg_no = ?, email = ?, gender = ? WHERE id = ?',
+          [student_name.trim(), reg_no.trim(), email ? email.trim() : null, gender, id]
         );
         if (!result.affectedRows) {
           return res.status(404).json({ error: 'Record not found.' });
@@ -581,6 +603,7 @@ module.exports = async (req, res) => {
         reg_no,
         student_class,
         year,
+        gender,
         email,
         phone,
         payment_type,
@@ -589,8 +612,8 @@ module.exports = async (req, res) => {
         registered_by
       } = body;
 
-      if (!student_name || !reg_no || !amount) {
-        return res.status(400).json({ error: 'Missing required fields.' });
+      if (!student_name || !reg_no || !amount || !['Male', 'Female', 'Other', 'Prefer not to say'].includes(gender)) {
+        return res.status(400).json({ error: 'Student name, student number, amount, and a valid gender are required.' });
       }
 
       // Format final payment type text
@@ -600,8 +623,8 @@ module.exports = async (req, res) => {
 
       // Insert record
       const query = `
-        INSERT INTO students (student_name, reg_no, student_class, year, email, phone, payment_type, amount, registered_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO students (student_name, reg_no, student_class, year, gender, email, phone, payment_type, amount, registered_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const values = [
@@ -609,6 +632,7 @@ module.exports = async (req, res) => {
         reg_no,
         student_class || '',
         year || '',
+        gender,
         email || null,
         phone || null,
         finalPaymentType,
