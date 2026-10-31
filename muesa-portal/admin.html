@@ -96,7 +96,25 @@
     .photo-review-item img { width: 48px; height: 58px; object-fit: cover; border-radius: 4px; }
     .photo-review-item .review-details { flex: 1; }
     .photo-review-item .review-actions { display: flex; gap: 6px; }
-    @media (max-width: 700px) { .shell { padding: 14px; } .topbar, .panel-head { align-items: stretch; flex-direction: column; } .toolbar { align-items: stretch; } .toolbar .btn, .toolbar .file-label { width: 100%; } }
+    @media (max-width: 700px) {
+      .shell { padding: 14px 10px; }
+      .topbar, .panel-head { align-items: stretch; flex-direction: column; }
+      .brand { align-items: flex-start; min-width: 0; }
+      .brand > div { min-width: 0; }
+      .brand h1 { overflow-wrap: anywhere; }
+      .topbar > div:last-child { justify-content: stretch !important; }
+      .topbar > div:last-child .btn { flex: 1; text-align: center; }
+      .toolbar { align-items: stretch; }
+      .toolbar .btn, .toolbar .file-label { width: 100%; }
+      .toolbar > label:not(.file-label) { width: 100%; }
+      .toolbar select, .toolbar input[type="search"] { width: 100% !important; min-width: 0 !important; }
+      .photo-review-item { align-items: flex-start; flex-wrap: wrap; }
+      .photo-review-item .review-details { min-width: calc(100% - 72px); }
+      .photo-review-item .review-actions { width: 100%; }
+      .photo-review-item .review-actions .btn { flex: 1; }
+      .pagination { align-items: center; gap: 10px; }
+      .pagination-actions { flex-wrap: wrap; }
+    }
     @media print {
       @page { size: A4 landscape; margin: 10mm; }
       body { background: white; font-family: Georgia, serif; }

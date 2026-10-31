@@ -154,6 +154,23 @@
     tbody tr:hover { background-color: #f1f5f9; }
     .record-photo { width: 42px; height: 52px; max-width: 42px; max-height: 52px; object-fit: cover; border: 1px solid var(--border-color); border-radius: 4px; display: block; }
     .collection-table-wrap { overflow-x: auto; } .collection-feedback { min-height: 20px; margin: 10px 0 0; color: #9b2c2c; font-size: 13px; } .collection-feedback.success { color: #177245; }
+    .admin-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: -8px 0 20px; }
+    .admin-nav button { flex: 1 1 150px; border: 1px solid var(--border-color); border-radius: 7px; padding: 11px 14px; color: var(--primary-blue); background: white; font-weight: 700; cursor: pointer; }
+    .admin-nav button:hover, .admin-nav button.active { color: white; background: var(--royal-blue); border-color: var(--royal-blue); }
+    .admin-dashboard { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .admin-dashboard-intro { grid-column: 1 / -1; margin: 0; }
+    .admin-dashboard-card { min-height: 140px; padding: 20px; border: 1px solid var(--border-color); border-radius: 9px; background: white; box-shadow: 0 4px 12px rgba(0,0,0,.05); text-align: left; cursor: pointer; }
+    .admin-dashboard-card:hover { border-color: var(--royal-blue); box-shadow: 0 6px 18px rgba(0,86,179,.12); }
+    .admin-dashboard-card strong, .admin-dashboard-card span { display: block; }
+    .admin-dashboard-card strong { color: var(--primary-blue); font-size: 17px; }
+    .admin-dashboard-card span { margin-top: 8px; color: #607080; font-size: 13px; line-height: 1.5; }
+    .admin-stat { display: block; margin-top: 12px; color: var(--royal-blue); font-size: 13px; font-weight: 700; }
+    .admin-stat strong { font-size: 22px; }
+    .admin-section[hidden], #adminDashboard[hidden] { display: none !important; }
+    .reports-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; border-bottom: 2px solid var(--border-color); padding-bottom: 12px; margin-bottom: 18px; }
+    .record-filters { grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(120px, 1fr)) auto; }
+    #printableTableArea { overflow-x: auto; }
+    #recordsTableBody .record-group-row td { padding: 12px; color: var(--primary-blue); background: #eaf2f8; font-weight: 800; }
 
     /* USER BADGE */
     #userBadge {
@@ -167,6 +184,35 @@
       #printableTableArea, #printableTableArea * { visibility: visible; }
       #printableTableArea { position: absolute; left: 0; top: 0; width: 100%; }
       .no-print { display: none !important; }
+    }
+    @media (max-width: 700px) {
+      body { padding: 10px; }
+      .container { width: 100%; }
+      .header { align-items: stretch; flex-direction: column; gap: 14px; padding: 16px; }
+      .header-brand { min-width: 0; gap: 10px; }
+      .header-brand h2 { font-size: 19px; overflow-wrap: anywhere; }
+      .header > div:last-child { display: flex; flex-wrap: wrap; gap: 8px; }
+      .header > div:last-child > * { margin: 0 !important; }
+      #userBadge { width: 100%; }
+      .btn-logout { text-align: center; }
+      .card { padding: 16px; margin-bottom: 16px; }
+      .form-grid, .record-filters { grid-template-columns: minmax(0, 1fr); }
+      .reports-heading { align-items: stretch; flex-direction: column; }
+      .reports-heading .btn-action { width: 100%; }
+      .calc-box { align-items: flex-start; flex-direction: column; gap: 10px; padding: 15px; }
+      .calc-box h4 { line-height: 1.5; }
+      .print-fields { align-items: flex-start; }
+      .collection-table-wrap table, #printableTableArea table { min-width: 980px; }
+      .admin-dashboard { grid-template-columns: minmax(0, 1fr); }
+      .admin-dashboard-intro { grid-column: auto; }
+      .admin-dashboard-card { min-height: 0; padding: 16px; }
+      .admin-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .admin-nav button { min-width: 0; padding: 10px 8px; }
+      .login-card { width: calc(100% - 24px); padding: 24px 18px; }
+    }
+    @media (max-width: 380px) {
+      .admin-nav { grid-template-columns: 1fr; }
+      .login-switcher button { padding: 9px 5px; }
     }
   </style>
 </head>
@@ -214,7 +260,35 @@
       </div>
     </div>
 
-    <section class="card" id="idCollectionAdmin">
+    <nav class="admin-nav" id="adminNav" aria-label="Admin dashboard sections" style="display:none">
+      <button type="button" class="active" data-admin-view="dashboard">Dashboard</button>
+      <button type="button" data-admin-view="paymentFormSection">Record payment</button>
+      <button type="button" data-admin-view="idCollectionAdmin">ID card collection</button>
+      <button type="button" data-admin-view="reportsSection">Records &amp; reports</button>
+    </nav>
+
+    <section class="admin-dashboard" id="adminDashboard" hidden>
+      <p class="admin-dashboard-intro">Choose a workspace to continue. Records and totals are grouped by each student's study year.</p>
+      <button type="button" class="admin-dashboard-card" data-admin-view="paymentFormSection">
+        <strong>Record a payment</strong><span>Register a student, record a payment, or update an existing entry.</span>
+      </button>
+      <button type="button" class="admin-dashboard-card" data-admin-view="idCollectionAdmin">
+        <strong>ID card collection</strong><span>Verify a student's one-time code and manage card handovers.</span>
+        <span class="admin-stat"><strong id="dashboardCollectionCount">0</strong> collection records</span>
+      </button>
+      <button type="button" class="admin-dashboard-card" data-admin-view="reportsSection">
+        <strong>Records &amp; financial reports</strong><span>Search, filter, print, and review student payment records by study year.</span>
+        <span class="admin-stat"><strong id="dashboardRecordCount">0</strong> student records</span>
+      </button>
+      <a class="admin-dashboard-card" id="dashboardPhotoLink" href="admin.html" style="display:none;text-decoration:none">
+        <strong>Photo administration</strong><span>Match student photos, review submissions, and print ID cards.</span>
+      </a>
+      <a class="admin-dashboard-card" id="dashboardPapersLink" href="admin_2.html" style="display:none;text-decoration:none">
+        <strong>Past papers</strong><span>Upload and organize documents in the student vault.</span>
+      </a>
+    </section>
+
+    <section class="card admin-section" id="idCollectionAdmin">
       <h3>ID Card Collection</h3>
       <p>Enter the one-time code shown by the student. Check the displayed details against their physical ID card before confirming handover.</p>
       <form id="collectionVerifyForm">
@@ -234,7 +308,7 @@
     </section>
 
     <!-- STUDENT PAYMENT FORM -->
-    <div class="card">
+    <div class="card admin-section" id="paymentFormSection">
       <h3>Record Student Payment</h3>
       <div class="edit-notice" id="editNotice">Editing an existing record. Only Student Name, Student Number, and Email can be changed. Phone, Sem, Year, Type, Amount, Reg Date, and By remain unchanged.</div>
       <form id="studentForm">
@@ -319,8 +393,8 @@
     </div>
 
     <!-- ADMIN-ONLY: RECORDS & FINANCIAL REPORTS -->
-    <div class="card" id="reportsSection" style="display: none;">
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); padding-bottom: 12px; margin-bottom: 18px;">
+    <div class="card admin-section" id="reportsSection" style="display: none;">
+      <div class="reports-heading">
         <h3 style="margin: 0; border: none; padding: 0;">Records & Financial Reports</h3>
         <button class="btn-action" onclick="printSelectedRecords()">🖨️ Print Selected / Visible Records</button>
       </div>
@@ -348,7 +422,7 @@
       </div>
 
       <!-- SEARCH & FILTERS ROW -->
-      <div class="form-grid" style="margin-bottom: 18px; grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto;">
+      <div class="form-grid record-filters" style="margin-bottom: 18px;">
         <div class="form-group">
           <label>🔍 Search Name or Student Number</label>
           <input type="text" id="searchInput" placeholder="Type name or student number..." onkeyup="filterRecords()">
@@ -461,6 +535,25 @@
     document.getElementById('studentModeBtn').addEventListener('click', () => setLoginMode('student'));
     document.getElementById('staffModeBtn').addEventListener('click', () => setLoginMode('staff'));
 
+    function showAdminView(viewId) {
+      const dashboard = document.getElementById('adminDashboard');
+      const sections = document.querySelectorAll('.admin-section');
+      dashboard.hidden = viewId !== 'dashboard';
+      sections.forEach(section => {
+        const isVisible = section.id === viewId;
+        section.hidden = !isVisible;
+        if (section.id === 'reportsSection') section.style.display = isVisible ? 'block' : 'none';
+      });
+      document.querySelectorAll('#adminNav [data-admin-view]').forEach(button => {
+        button.classList.toggle('active', button.dataset.adminView === viewId);
+      });
+      if (viewId !== 'dashboard') document.getElementById(viewId).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    document.querySelectorAll('[data-admin-view]').forEach(button => {
+      button.addEventListener('click', () => showAdminView(button.dataset.adminView));
+    });
+
     // LOGIN
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -492,11 +585,15 @@
           document.getElementById('userBadge').innerText = `Logged in as: ${currentUser} (${currentRole.toUpperCase()})`;
 
           if (currentRole === 'admin') {
-            document.getElementById('reportsSection').style.display = 'block';
+            document.getElementById('adminNav').style.display = '';
+            document.getElementById('dashboardPhotoLink').style.display = 'block';
+            document.getElementById('dashboardPapersLink').style.display = 'block';
             document.getElementById('photoAdminLink').style.display = 'inline-block';
+            showAdminView('dashboard');
             loadRecords();
           } else {
             document.getElementById('reportsSection').style.display = 'none';
+            document.getElementById('adminDashboard').hidden = true;
           }
           document.getElementById('pastPapersAdminLink').style.display = 'inline-block';
           loadIdCollectionRecords();
@@ -523,6 +620,7 @@
       const query = document.getElementById('collectionSearch').value.trim().toLowerCase();
       const filtered = idCollectionRecords.filter(record => `${record.student_name || ''} ${record.reg_no || ''} ${record.card_number || ''} ${record.collected_at ? 'collected' : 'ready for collection'} ${record.collected_by || ''}`.toLowerCase().includes(query));
       document.getElementById('collectionRows').innerHTML = filtered.length ? filtered.map(record => `<tr><td>${escapeCollectionHtml(record.student_name || '-')}</td><td>${escapeCollectionHtml(record.reg_no)}</td><td>${escapeCollectionHtml(record.card_number || '-')}</td><td>${record.collected_at ? 'Collected' : 'Ready for collection'}</td><td>${formatCollectionDate(record.collected_at)}</td><td>${escapeCollectionHtml(record.collected_by || '-')}</td></tr>`).join('') : '<tr><td colspan="6">No matching ID card records.</td></tr>';
+      document.getElementById('dashboardCollectionCount').textContent = idCollectionRecords.length.toLocaleString();
     }
     async function loadIdCollectionRecords() {
       try {
@@ -669,7 +767,10 @@
     function editRecord(id) {
       if (currentRole !== 'admin') return;
       const record = allRecords.find(item => String(item.id) === String(id));
-      if (record) setEditMode(record);
+      if (record) {
+        showAdminView('paymentFormSection');
+        setEditMode(record);
+      }
     }
 
     document.getElementById('cancelEditBtn').addEventListener('click', resetEditMode);
@@ -685,6 +786,7 @@
           studentPhotos.set(String(photo.student_id), photo);
           studentPhotos.set(photo.reg_no, photo);
         });
+        document.getElementById('dashboardRecordCount').textContent = allRecords.length.toLocaleString();
         filterRecords();
       } catch (err) {
         console.error('Error loading records:', err);
@@ -729,39 +831,52 @@
         return matchSearch && matchDate && matchYear && matchType && matchPhoto;
       });
 
-      const tbody = document.getElementById('recordsTableBody');
-      tbody.innerHTML = '';
+      const recordsByYear = new Map();
+      filtered.forEach(record => {
+        const year = ['Year 1', 'Year 2', 'Year 3'].includes(record.year) ? record.year : 'Unclassified';
+        if (!recordsByYear.has(year)) recordsByYear.set(year, []);
+        recordsByYear.get(year).push(record);
+      });
+      const yearOrder = ['Year 1', 'Year 2', 'Year 3', 'Unclassified'];
+      const orderedYears = yearOrder.filter(year => recordsByYear.has(year));
+      const rows = [];
 
-      filtered.forEach(r => {
-        let displayDate = '-';
-        if (r.reg_date) displayDate = r.reg_date.split('T')[0];
-        else if (r.created_at) displayDate = r.created_at.split('T')[0];
-        const photo = studentPhotos.get(String(r.id)) || studentPhotos.get(r.reg_no);
-        const photoCell = photo && photo.photo_data
-          ? `<img class="record-photo" src="${photo.photo_data}" alt="${r.student_name || r.full_name || 'Student'} photo">`
-          : '<span>No Picture</span>';
+      orderedYears.forEach(year => {
+        const yearRecords = recordsByYear.get(year);
+        const yearTotal = yearRecords.reduce((sum, record) => sum + Number(record.amount || 0), 0);
+        rows.push(`<tr class="record-group-row"><td colspan="14">${year} · ${yearRecords.length.toLocaleString()} record(s) · UGX ${yearTotal.toLocaleString()}</td></tr>`);
+        yearRecords.forEach(r => {
+          let displayDate = '-';
+          if (r.reg_date) displayDate = r.reg_date.split('T')[0];
+          else if (r.created_at) displayDate = r.created_at.split('T')[0];
+          const photo = studentPhotos.get(String(r.id)) || studentPhotos.get(r.reg_no);
+          const photoCell = photo && photo.photo_data
+            ? `<img class="record-photo" src="${photo.photo_data}" alt="${r.student_name || r.full_name || 'Student'} photo">`
+            : '<span>No Picture</span>';
 
-        const row = `
-          <tr>
-            <td class="no-print"><input type="checkbox" class="record-checkbox" data-amount="${r.amount || 0}" onchange="calculateSelectedSum()"></td>
-            <td data-print-field="photo">${photoCell}</td>
-            <td data-print-field="name">${r.student_name || r.full_name || '-'}</td>
-            <td data-print-field="regNo">${r.reg_no || '-'}</td>
-            <td data-print-field="email">${r.email || '-'}</td>
-            <td data-print-field="phone">${r.phone || '-'}</td>
-            <td data-print-field="studentClass">${r.student_class || '-'}</td>
-            <td data-print-field="year">${r.year || '-'}</td>
-            <td data-print-field="gender">${r.gender || 'Not set'}</td>
-            <td data-print-field="type">${r.payment_type || '-'}</td>
-            <td data-print-field="amount">UGX ${Number(r.amount || 0).toLocaleString()}</td>
-            <td data-print-field="regDate">${displayDate}</td>
-            <td data-print-field="registeredBy">${r.registered_by || 'Admin'}</td>
-            <td class="no-print"><div style="display: grid; gap: 6px;"><button class="btn-edit" onclick="editRecord(${r.id})">Edit</button><button class="btn-delete" onclick="deleteRecord(${r.id})">Delete</button></div></td>
-          </tr>
-        `;
-        tbody.innerHTML += row;
+          rows.push(`
+            <tr>
+              <td class="no-print"><input type="checkbox" class="record-checkbox" data-amount="${r.amount || 0}" onchange="calculateSelectedSum()"></td>
+              <td data-print-field="photo">${photoCell}</td>
+              <td data-print-field="name">${r.student_name || r.full_name || '-'}</td>
+              <td data-print-field="regNo">${r.reg_no || '-'}</td>
+              <td data-print-field="email">${r.email || '-'}</td>
+              <td data-print-field="phone">${r.phone || '-'}</td>
+              <td data-print-field="studentClass">${r.student_class || '-'}</td>
+              <td data-print-field="year">${r.year || '-'}</td>
+              <td data-print-field="gender">${r.gender || 'Not set'}</td>
+              <td data-print-field="type">${r.payment_type || '-'}</td>
+              <td data-print-field="amount">UGX ${Number(r.amount || 0).toLocaleString()}</td>
+              <td data-print-field="regDate">${displayDate}</td>
+              <td data-print-field="registeredBy">${r.registered_by || 'Admin'}</td>
+              <td class="no-print"><div style="display: grid; gap: 6px;"><button class="btn-edit" onclick="editRecord(${r.id})">Edit</button><button class="btn-delete" onclick="deleteRecord(${r.id})">Delete</button></div></td>
+            </tr>
+          `);
+        });
       });
 
+      if (!rows.length) rows.push('<tr><td colspan="14">No records match the selected filters.</td></tr>');
+      document.getElementById('recordsTableBody').innerHTML = rows.join('');
       document.getElementById('selectAll').checked = false;
       calculateSelectedSum();
     }
@@ -819,6 +934,7 @@
         .map(field => field.dataset.field);
       const temporarilyHiddenRows = [];
       const temporarilyHiddenFields = [];
+      const groupRows = Array.from(document.querySelectorAll('#recordsTableBody .record-group-row'));
 
       if (selectedFields.length === 0) {
         alert('Select at least one field to print.');
@@ -840,6 +956,23 @@
           cb.closest('tr').classList.remove('no-print');
         });
       }
+
+      groupRows.forEach(groupRow => {
+        if (!hasSelection) {
+          groupRow.classList.remove('no-print');
+          return;
+        }
+        let nextRow = groupRow.nextElementSibling;
+        while (nextRow && !nextRow.classList.contains('record-group-row') && nextRow.classList.contains('no-print')) {
+          nextRow = nextRow.nextElementSibling;
+        }
+        if (!nextRow || nextRow.classList.contains('record-group-row')) {
+          groupRow.classList.add('no-print');
+          temporarilyHiddenRows.push(groupRow);
+        } else {
+          groupRow.classList.remove('no-print');
+        }
+      });
 
       document.querySelectorAll('[data-print-field]').forEach(cell => {
         if (!selectedFields.includes(cell.dataset.printField)) {
