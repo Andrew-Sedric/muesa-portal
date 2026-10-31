@@ -184,7 +184,7 @@
       <form id="loginForm">
         <div class="form-group" style="margin-bottom: 15px; text-align: left;">
           <label id="loginUserLabel">Enter Student's Number</label>
-          <input type="text" id="login_user" required placeholder="Enter registration number">
+          <input type="text" id="login_user" required placeholder="Enter student number">
         </div>
         <div class="form-group" style="margin-bottom: 20px; text-align: left;">
           <label id="loginPasswordLabel">Password</label>
@@ -454,7 +454,7 @@
       document.getElementById('staffModeBtn').classList.toggle('active', !studentMode);
       document.getElementById('studentModeBtn').setAttribute('aria-selected', String(studentMode));
       document.getElementById('staffModeBtn').setAttribute('aria-selected', String(!studentMode));
-      document.getElementById('loginUserLabel').textContent = studentMode ? 'Student Number' : 'Staff Username';
+      document.getElementById('loginUserLabel').textContent = studentMode ? 'Enter tudent Number' : 'Staff Username';
       document.getElementById('login_user').placeholder = studentMode ? 'Enter student number' : 'Enter username';
       document.getElementById('login_pass').value = '';
     }
