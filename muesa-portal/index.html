@@ -454,8 +454,8 @@
       document.getElementById('staffModeBtn').classList.toggle('active', !studentMode);
       document.getElementById('studentModeBtn').setAttribute('aria-selected', String(studentMode));
       document.getElementById('staffModeBtn').setAttribute('aria-selected', String(!studentMode));
-      document.getElementById('loginUserLabel').textContent = studentMode ? 'Student Registration Number' : 'Staff Username';
-      document.getElementById('login_user').placeholder = studentMode ? 'Enter registration number' : 'Enter username';
+      document.getElementById('loginUserLabel').textContent = studentMode ? 'Student Number' : 'Staff Username';
+      document.getElementById('login_user').placeholder = studentMode ? 'Enter student number' : 'Enter username';
       document.getElementById('login_pass').value = '';
     }
     document.getElementById('studentModeBtn').addEventListener('click', () => setLoginMode('student'));
