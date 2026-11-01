@@ -911,18 +911,25 @@
 
     // DELETE RECORD
     async function deleteRecord(id) {
-      if (!confirm('Are you sure you want to permanently delete this record?')) return;
+      const record = allRecords.find(item => String(item.id) === String(id));
+      const recordName = record ? `${record.student_name || record.full_name || 'Unknown student'} (${record.reg_no || 'no student number'})` : `ID ${id}`;
+      const permissionCode = prompt(`Enter the permission code from the HOD to confirm the deletion of "${recordName}" record.`);
+      if (permissionCode === null) return;
       try {
-        const res = await fetch(`/api/index?id=${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/index?id=${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: currentUser, password: currentStaffPassword, permission_code: permissionCode })
+        });
         const data = await res.json();
         if (res.ok && data.success) {
           alert('Record deleted successfully.');
           loadRecords();
         } else {
-          alert('Failed to delete record: ' + (data.error || 'Unknown error'));
+          alert(data.error || 'Failed to delete record.');
         }
       } catch (err) {
-        alert('Error communicating with server.');
+        alert('Unable to communicate with the server. The record was not deleted.');
       }
     }
 

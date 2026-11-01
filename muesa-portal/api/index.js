@@ -262,6 +262,13 @@ module.exports = async (req, res) => {
       if (!id) {
         return res.status(400).json({ error: 'Record ID is required.' });
       }
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+      if (staffRoleFor(body.username, body.password) !== 'admin') {
+        return res.status(401).json({ error: 'Admin authentication is required to delete records.' });
+      }
+      if (body.permission_code !== 'DELETE WITH hod') {
+        return res.status(403).json({ error: 'The HOD permission code is incorrect. The record was not deleted.' });
+      }
       await pool.query('DELETE FROM students WHERE id = ?', [id]);
       return res.status(200).json({ success: true, message: 'Record deleted successfully.' });
     } catch (error) {
@@ -446,9 +453,10 @@ module.exports = async (req, res) => {
           LIMIT 1
         `, [body.reg_no.trim(), password]);
         if (!rows.length) return res.status(401).json({ error: 'Invalid student number or password.' });
+        const mustChangePassword = rows[0].password === '123';
         const { password: ignoredPassword, ...student } = rows[0];
         student.photo_status = normalizePhotoStatus(student.photo_data, student.photo_status);
-        return res.status(200).json({ success: true, student });
+        return res.status(200).json({ success: true, student, must_change_password: mustChangePassword });
       }
 
       if (action === 'student_upload_photo') {
@@ -485,6 +493,9 @@ module.exports = async (req, res) => {
         }
         if (String(body.new_password).length < 3) {
           return res.status(400).json({ error: 'New password must be at least 3 characters.' });
+        }
+        if (body.new_password === '123') {
+          return res.status(400).json({ error: 'Choose a password other than the default password 123.' });
         }
         const [result] = await pool.query(
           'UPDATE students SET password = ? WHERE LOWER(reg_no) = LOWER(?) AND password = ?',

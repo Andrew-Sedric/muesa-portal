@@ -35,6 +35,8 @@
     .id-preview-verify { position: absolute; right: 4%; bottom: 3%; width: 18%; padding: 1%; color: white; background: #001ed2; border-radius: 4px; text-align: center; font-size: clamp(7px, 1vw, 10px); font-weight: 700; }
     .vault-panel { margin-top: 20px; padding: 24px; } .vault-tools { display: flex; gap: 10px; margin: 16px 0; } .vault-tools input { flex: 1; } .vault-year, .vault-semester, .vault-subject { margin-top: 10px; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; } .vault-year > summary, .vault-semester > summary, .vault-subject > summary { padding: 13px 15px; color: var(--navy); background: #f3f7f6; cursor: pointer; font-weight: 800; } .vault-year-content { padding: 0 12px 12px; } .vault-semester > summary { background: #f8faf9; } .vault-documents { display: grid; gap: 8px; padding: 12px; } .vault-document { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px; border: 1px solid var(--line); border-radius: 4px; } .vault-document strong, .vault-document small { display: block; } .vault-document small { color: var(--muted); margin-top: 3px; } .vault-viewer { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(6,29,55,.86); } .vault-viewer[hidden] { display: none; } .vault-viewer-inner { width: min(100%, 980px); max-height: 100%; overflow: auto; padding: 18px; background: white; border-radius: 8px; } .vault-viewer canvas { display: block; width: 100%; height: auto; max-height: 76vh; object-fit: contain; background: #f4f7f6; } .vault-viewer-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; margin-bottom: 12px; }
     .collection-panel { margin-top: 20px; padding: 24px; } .collection-code { display: inline-block; margin: 8px 0 14px; padding: 10px 16px; border: 1px dashed var(--teal); border-radius: 5px; color: var(--navy); background: #f0faf7; font: 800 28px/1.2 monospace; letter-spacing: 4px; user-select: text; } .collection-status { margin: 14px 0; }
+    .required-password { max-width: 520px; margin: 10vh auto 0; padding: 26px; }
+    .required-password h1 { font-size: clamp(24px, 4vw, 32px); }
     @media (max-width: 650px) {
       .shell { width: 100%; padding: 12px 10px 28px; }
       .topbar { align-items: stretch; flex-direction: column; gap: 14px; padding: 15px; }
@@ -58,6 +60,7 @@
       .vault-viewer-inner { padding: 12px; }
       .vault-viewer-head { flex-direction: column; }
       .login { width: 100%; margin-top: 5vh; padding: 20px; }
+      .required-password { margin-top: 5vh; padding: 18px; }
     }
   </style>
 </head>
@@ -69,10 +72,24 @@
       <p class="muted">Sign in with your registration number and password.</p>
       <form class="form" id="loginForm">
         <label>Registration / Student Number<input id="loginRegNo" required autocomplete="username"></label>
-        <label>Password<input id="loginPassword" type="password" required autocomplete="current-password" value="123"></label>
+        <label>Password<input id="loginPassword" type="password" required autocomplete="current-password"></label>
         <button class="btn btn-primary" type="submit">Sign in</button>
       </form>
       <p class="message" id="loginMessage" role="alert"></p>
+    </section>
+
+    <section class="panel required-password" id="requiredPasswordView" hidden>
+      <div class="eyebrow">Account security</div>
+      <h1>Password change required</h1>
+      <p class="muted">Your account is still using the default password. Set a new password before continuing to your student portal.</p>
+      <p class="muted" id="requiredPasswordStudent"></p>
+      <form class="form" id="requiredPasswordForm">
+        <label>New password<input id="requiredNewPassword" type="password" required minlength="3" autocomplete="new-password"></label>
+        <label>Confirm new password<input id="requiredConfirmPassword" type="password" required minlength="3" autocomplete="new-password"></label>
+        <button class="btn btn-primary" id="requiredPasswordSubmit" type="submit">Change password and continue</button>
+      </form>
+      <p class="message" id="requiredPasswordMessage" role="alert"></p>
+      <button class="btn btn-quiet" id="requiredPasswordLogout" type="button">Sign out</button>
     </section>
 
     <section id="profileView">
@@ -132,7 +149,7 @@
     }
     function showProfile(data) {
       student = data;
-      $('loginView').style.display = 'none'; $('profileView').style.display = 'block';
+      $('loginView').style.display = 'none'; $('requiredPasswordView').hidden = true; $('profileView').style.display = 'block';
       $('profileName').textContent = student.student_name || student.full_name || '-';
       $('profileRegNo').textContent = student.reg_no || '-'; $('profileClass').textContent = student.student_class || '-'; $('profileYear').textContent = student.year || '-'; $('profilePayment').textContent = student.payment_type || '-';
       $('previewName').textContent = student.student_name || student.full_name || '-'; $('previewRegNo').textContent = student.reg_no || '-'; renderPhoto(student.photo_data); loadVault(); loadCollectionStatus();
@@ -214,10 +231,61 @@
     $('loginForm').addEventListener('submit', async event => {
       event.preventDefault(); setMessage($('loginMessage'), 'Signing in...');
       try {
-        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'student_login', reg_no: $('loginRegNo').value, password: $('loginPassword').value }) });
+        const password = $('loginPassword').value;
+        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'student_login', reg_no: $('loginRegNo').value, password }) });
         const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Unable to sign in.');
-        sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student: data.student, password: $('loginPassword').value })); showProfile(data.student); $('currentPassword').value = $('loginPassword').value; $('loginForm').reset();
+        sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student: data.student, password }));
+        $('loginForm').reset();
+        if (data.must_change_password || password === '123') showRequiredPassword(data.student, password);
+        else { showProfile(data.student); $('currentPassword').value = password; }
       } catch (error) { setMessage($('loginMessage'), error.message); }
+    });
+    function showRequiredPassword(studentData, currentPassword) {
+      student = studentData;
+      $('loginView').style.display = 'none';
+      $('profileView').style.display = 'none';
+      $('requiredPasswordView').hidden = false;
+      $('requiredPasswordStudent').textContent = `Account: ${studentData.student_name || studentData.full_name || studentData.reg_no}`;
+      $('requiredNewPassword').value = '';
+      $('requiredConfirmPassword').value = '';
+      $('requiredPasswordForm').dataset.currentPassword = currentPassword;
+      setMessage($('requiredPasswordMessage'), '');
+    }
+    $('requiredPasswordForm').addEventListener('submit', async event => {
+      event.preventDefault();
+      const newPassword = $('requiredNewPassword').value;
+      if (newPassword !== $('requiredConfirmPassword').value) {
+        setMessage($('requiredPasswordMessage'), 'New passwords do not match.');
+        return;
+      }
+      if (newPassword === '123') {
+        setMessage($('requiredPasswordMessage'), 'Choose a password other than the default password 123.');
+        return;
+      }
+      const submitButton = $('requiredPasswordSubmit');
+      submitButton.disabled = true;
+      setMessage($('requiredPasswordMessage'), 'Updating your password...');
+      try {
+        const response = await fetch('/api/index', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'change_password',
+            reg_no: student.reg_no,
+            current_password: $('requiredPasswordForm').dataset.currentPassword,
+            new_password: newPassword
+          })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to update password.');
+        sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student, password: newPassword }));
+        $('currentPassword').value = newPassword;
+        showProfile(student);
+      } catch (error) {
+        setMessage($('requiredPasswordMessage'), error.message);
+      } finally {
+        submitButton.disabled = false;
+      }
     });
     function sessionPassword() { const session = JSON.parse(sessionStorage.getItem('muesaStudentSession') || '{}'); return session.password || $('currentPassword').value; }
     document.querySelectorAll('.portal-menu button').forEach(button => button.addEventListener('click', () => {
@@ -238,7 +306,14 @@
       } catch (error) { setMessage($('passwordMessage'), error.message); }
     });
     function readImage(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); }); }
-    $('logoutBtn').addEventListener('click', () => { sessionStorage.removeItem('muesaStudentSession'); student = null; stopCollectionCountdown(); if (collectionStatusPoll) clearInterval(collectionStatusPoll); $('profileView').style.display = 'none'; $('loginView').style.display = 'block'; $('loginPassword').value = '123'; setMessage($('loginMessage'), ''); });
+    function logoutStudent() {
+      sessionStorage.removeItem('muesaStudentSession'); student = null; stopCollectionCountdown();
+      if (collectionStatusPoll) clearInterval(collectionStatusPoll);
+      $('profileView').style.display = 'none'; $('requiredPasswordView').hidden = true; $('loginView').style.display = 'block';
+      $('loginPassword').value = ''; $('loginRegNo').value = ''; setMessage($('loginMessage'), '');
+    }
+    $('logoutBtn').addEventListener('click', logoutStudent);
+    $('requiredPasswordLogout').addEventListener('click', logoutStudent);
     document.addEventListener('contextmenu', event => { if (event.target.closest('#profileView')) event.preventDefault(); });
     async function restoreStudentSession() {
       const savedSession = JSON.parse(sessionStorage.getItem('muesaStudentSession') || 'null');
@@ -248,10 +323,16 @@
         const data = await response.json();
         if (!response.ok || !data.success) throw new Error('Session expired.');
         sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student: data.student, password: savedSession.password }));
-        showProfile(data.student);
-        $('currentPassword').value = savedSession.password;
+        if (data.must_change_password || savedSession.password === '123') showRequiredPassword(data.student, savedSession.password);
+        else {
+          showProfile(data.student);
+          $('currentPassword').value = savedSession.password;
+        }
       } catch (error) {
         sessionStorage.removeItem('muesaStudentSession');
+        $('requiredPasswordView').hidden = true;
+        $('profileView').style.display = 'none';
+        $('loginView').style.display = 'block';
       }
     }
     restoreStudentSession();
