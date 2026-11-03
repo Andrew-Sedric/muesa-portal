@@ -26,7 +26,50 @@
   <script>
     const $ = id => document.getElementById(id);
     const escapeHtml = value => String(value || '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
-    function readImage(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('Unable to read the selected image.')); reader.readAsDataURL(file); }); }
+    function readImage(file) {
+      return new Promise((resolve, reject) => {
+        // If file size is under 1.5 MB, skip compression and keep original format/resolution
+        const MAX_SAFE_BYTES = 1.5 * 1024 * 1024;
+        if (file.size <= MAX_SAFE_BYTES) {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error(`Unable to read ${file.name}`));
+          reader.readAsDataURL(file);
+          return;
+        }
+
+        // Otherwise, compress only large images to fit safely under Vercel limits
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            const maxWidth = 1600;
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, width, height);
+
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+          };
+          img.onerror = () => reject(new Error(`Unable to process ${file.name}`));
+          img.src = event.target.result;
+        };
+        reader.onerror = () => reject(new Error(`Unable to read ${file.name}`));
+        reader.readAsDataURL(file);
+      });
+    }
     function setMessage(text, success = false) { $('message').textContent = text; $('message').className = `message${success ? ' success' : ''}`; }
     let papers = [];
     function groupedPapers() { const groups = new Map(); papers.forEach(paper => { const key = `${paper.study_year}|${paper.semester}|${paper.course_code}|${paper.title}|${paper.paper_year}`; if (!groups.has(key)) groups.set(key, { ...paper, pages: [] }); groups.get(key).pages.push(paper); }); return Array.from(groups.values()); }
