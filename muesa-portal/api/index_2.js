@@ -12,35 +12,45 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
-async function ensurePastPapersTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS past_papers (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      course_code VARCHAR(255) NOT NULL,
-      title VARCHAR(255) NOT NULL,
-      paper_year VARCHAR(50) NOT NULL,
-      study_year VARCHAR(50) NULL,
-      semester VARCHAR(50) NULL,
-      file_name VARCHAR(255) NOT NULL,
-      image_data LONGTEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  const [columns] = await pool.query(`
-    SELECT COLUMN_NAME
-    FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'past_papers'
-      AND COLUMN_NAME IN ('study_year', 'semester')
-  `);
-  const existingColumns = new Set(columns.map(column => column.COLUMN_NAME));
-  for (const [column, definition] of [['study_year', 'VARCHAR(50) NULL'], ['semester', 'VARCHAR(50) NULL']]) {
-    if (existingColumns.has(column)) continue;
-    try {
-      await pool.query(`ALTER TABLE past_papers ADD COLUMN ${column} ${definition}`);
-    } catch (error) {
-      if (error.code !== 'ER_DUP_FIELDNAME' && error.errno !== 1060) throw error;
-    }
+let pastPapersSchemaPromise;
+
+function ensurePastPapersTable() {
+  if (!pastPapersSchemaPromise) {
+    pastPapersSchemaPromise = (async () => {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS past_papers (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          course_code VARCHAR(255) NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          paper_year VARCHAR(50) NOT NULL,
+          study_year VARCHAR(50) NULL,
+          semester VARCHAR(50) NULL,
+          file_name VARCHAR(255) NOT NULL,
+          image_data LONGTEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      const [columns] = await pool.query(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'past_papers'
+          AND COLUMN_NAME IN ('study_year', 'semester')
+      `);
+      const existingColumns = new Set(columns.map(column => column.COLUMN_NAME));
+      for (const [column, definition] of [['study_year', 'VARCHAR(50) NULL'], ['semester', 'VARCHAR(50) NULL']]) {
+        if (existingColumns.has(column)) continue;
+        try {
+          await pool.query(`ALTER TABLE past_papers ADD COLUMN ${column} ${definition}`);
+        } catch (error) {
+          if (error.code !== 'ER_DUP_FIELDNAME' && error.errno !== 1060) throw error;
+        }
+      }
+    })().catch(error => {
+      pastPapersSchemaPromise = null;
+      throw error;
+    });
   }
+  return pastPapersSchemaPromise;
 }
 
 function parseBody(req) {
@@ -61,10 +71,17 @@ module.exports = async (req, res) => {
     await ensurePastPapersTable();
 
     if (req.method === 'GET') {
-      const { action, reg_no: regNo } = req.query || {};
+      const { action, id } = req.query || {};
+      if (action === 'get_past_paper_page') {
+        const paperId = Number(id);
+        if (!Number.isSafeInteger(paperId) || paperId < 1) return res.status(400).json({ error: 'A valid document ID is required.' });
+        const [rows] = await pool.query('SELECT image_data FROM past_papers WHERE id = ?', [paperId]);
+        if (!rows.length) return res.status(404).json({ error: 'Document page not found.' });
+        return res.status(200).json(rows[0]);
+      }
       if (action !== 'get_past_papers') return res.status(400).json({ error: 'A valid action is required.' });
 
-      const [rows] = await pool.query('SELECT id, course_code, title, paper_year, study_year, semester, file_name, image_data, created_at FROM past_papers ORDER BY study_year ASC, semester ASC, course_code ASC, created_at DESC');
+      const [rows] = await pool.query('SELECT id, course_code, title, paper_year, study_year, semester, file_name, created_at FROM past_papers ORDER BY study_year ASC, semester ASC, course_code ASC, created_at DESC');
       return res.status(200).json(rows);
     }
 
