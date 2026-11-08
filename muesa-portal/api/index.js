@@ -449,10 +449,11 @@ module.exports = async (req, res) => {
           FROM students
           LEFT JOIN student_photos p_id ON p_id.student_id = students.id
           LEFT JOIN student_photos p_reg ON LOWER(p_reg.reg_no) = LOWER(students.reg_no)
-          WHERE LOWER(students.reg_no) = LOWER(?) AND students.password = ?
+          WHERE LOWER(students.reg_no) = LOWER(?)
           LIMIT 1
-        `, [body.reg_no.trim(), password]);
-        if (!rows.length) return res.status(401).json({ error: 'Invalid student number or password.' });
+        `, [body.reg_no.trim()]);
+        if (!rows.length) return res.status(401).json({ error: 'Wrong student ID number.' });
+        if (rows[0].password !== password) return res.status(401).json({ error: 'Incorrect password.' });
         const mustChangePassword = rows[0].password === '123';
         const { password: ignoredPassword, ...student } = rows[0];
         student.photo_status = normalizePhotoStatus(student.photo_data, student.photo_status);

@@ -564,7 +564,10 @@
         if (loginMode === 'student') {
           const studentResponse = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'student_login', reg_no: username, password }) });
           const studentData = await studentResponse.json();
-          if (!studentResponse.ok || !studentData.success) throw new Error(studentData.error || 'Student login failed.');
+          if (!studentResponse.ok || !studentData.success) {
+            alert(studentData.error || 'Student login failed.');
+            return;
+          }
           sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student: studentData.student, password }));
           window.location.href = 'student.html';
           return;
