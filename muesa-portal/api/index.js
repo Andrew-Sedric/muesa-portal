@@ -1,6 +1,19 @@
 const mysql = require('mysql2/promise');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const {
+  applySecurityHeaders,
+  authenticate,
+  checkLoginLimit,
+  clearLoginFailures,
+  createSession,
+  hashPassword,
+  isPasswordHash,
+  recordFailedLogin,
+  revokeStudentSessions,
+  staffCredential,
+  verifyPassword
+} = require('./security');
 
 const pool = mysql.createPool({
   host: process.env.TIDB_HOST,
@@ -21,16 +34,25 @@ async function ensurePasswordColumn() {
   if (!passwordMigration) {
     passwordMigration = (async () => {
       const [columns] = await pool.query(`
-        SELECT COLUMN_NAME
+        SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_DEFAULT
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'students' AND COLUMN_NAME = 'password'
       `);
       if (!columns.length) {
         try {
-          await pool.query("ALTER TABLE students ADD COLUMN password VARCHAR(255) NOT NULL DEFAULT '123'");
+          await pool.query('ALTER TABLE students ADD COLUMN password VARCHAR(255) NULL');
         } catch (error) {
           if (error.code !== 'ER_DUP_FIELDNAME' && error.errno !== 1060) throw error;
         }
+      }
+      const [students] = await pool.query("SELECT id, password FROM students WHERE password IS NULL OR password NOT LIKE 'scrypt$%'");
+      for (const student of students) {
+        if (!isPasswordHash(student.password)) {
+          await pool.query('UPDATE students SET password = ? WHERE id = ? AND password <=> ?', [hashPassword(student.password || '123'), student.id, student.password]);
+        }
+      }
+      if (!columns.length || columns[0].IS_NULLABLE === 'YES' || columns[0].COLUMN_DEFAULT != null) {
+        await pool.query('ALTER TABLE students MODIFY COLUMN password VARCHAR(255) NOT NULL');
       }
     })();
   }
@@ -125,6 +147,24 @@ function normalizePhotoStatus(photoData, photoStatus) {
   return 'Approved';
 }
 
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[character]));
+}
+
+function validRasterImage(dataUrl, maxBytes = 3 * 1024 * 1024) {
+  if (typeof dataUrl !== 'string' || dataUrl.length > Math.ceil(maxBytes * 4 / 3) + 32) return false;
+  const match = typeof dataUrl === 'string'
+    && dataUrl.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/);
+  if (!match) return false;
+  const bytes = Buffer.from(match[2], 'base64');
+  if (!bytes.length || bytes.length > maxBytes) return false;
+  if (match[1] === 'jpeg') return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (match[1] === 'png') return bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  return bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP';
+}
+
 async function ensureIdCollectionTables() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS id_card_collection_otps (
@@ -167,13 +207,6 @@ async function ensureIdCollectionTables() {
   `);
 }
 
-function staffRoleFor(username, password) {
-  if (username === 'admin' && password === 'HoD123') return 'admin';
-  if (username === 'president_muesa' && password === 'muesa2026') return 'president';
-  if (username === 'financial_muesa' && password === 'muesa2026') return 'finance';
-  return null;
-}
-
 function hashCollectionOtp(code) {
   const secret = process.env.ID_COLLECTION_OTP_SECRET || process.env.TIDB_PASSWORD;
   if (!secret) throw new Error('ID_COLLECTION_OTP_SECRET must be configured.');
@@ -199,12 +232,10 @@ async function recordFailedCollectionOtp(username) {
 }
 
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  applySecurityHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(204).end();
   }
 
   try {
@@ -218,6 +249,12 @@ module.exports = async (req, res) => {
 
   // GET: Fetch records
   if (req.method === 'GET') {
+    const session = await authenticate(req, pool);
+    if (!session) return res.status(401).json({ error: 'Sign in is required to view student records.' });
+    if (session.must_change_password) return res.status(403).json({ error: 'Change your temporary password before accessing the portal.' });
+    if (session.role === 'student' && !session.student_id) return res.status(403).json({ error: 'Invalid student session.' });
+    if (!['student', 'admin', 'staff'].includes(session.role)) return res.status(403).json({ error: 'This account cannot view student records.' });
+
     if (req.query.action === 'photos') {
       try {
         await ensurePhotoTable();
@@ -227,15 +264,26 @@ module.exports = async (req, res) => {
             printed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
           )
         `);
-        const [rows] = await pool.query(`
-          SELECT photos.student_id, photos.reg_no, photos.photo_data, photos.file_name, photos.photo_status, photos.updated_at, prints.printed_at
-          FROM student_photos photos
-          LEFT JOIN student_card_prints prints ON prints.student_id = photos.student_id
-        `);
-        return res.status(200).json(rows.map(photo => ({
-          ...photo,
-          photo_status: normalizePhotoStatus(photo.photo_data, photo.photo_status)
-        })));
+        const [rows] = session.role === 'student'
+          ? await pool.query(`
+            SELECT photos.student_id, photos.reg_no, photos.photo_data, photos.file_name, photos.photo_status, photos.updated_at, prints.printed_at
+            FROM student_photos photos
+            LEFT JOIN student_card_prints prints ON prints.student_id = photos.student_id
+            WHERE photos.student_id = ?
+          `, [session.student_id])
+          : await pool.query(`
+            SELECT photos.student_id, photos.reg_no, photos.photo_data, photos.file_name, photos.photo_status, photos.updated_at, prints.printed_at
+            FROM student_photos photos
+            LEFT JOIN student_card_prints prints ON prints.student_id = photos.student_id
+          `);
+        return res.status(200).json(rows.map(photo => {
+          const photoData = validRasterImage(photo.photo_data) ? photo.photo_data : '';
+          return {
+            ...photo,
+            photo_data: photoData,
+            photo_status: normalizePhotoStatus(photoData, photo.photo_status)
+          };
+        }));
       } catch (error) {
         if (error.code === 'ER_NO_SUCH_TABLE' || error.code === 'ER_BAD_TABLE_ERROR') {
           return res.status(200).json([]);
@@ -247,8 +295,13 @@ module.exports = async (req, res) => {
 
     try {
       // Selects all columns including created_at timestamp
-      const [rows] = await pool.query('SELECT *, DATE(created_at) as reg_date FROM students ORDER BY id DESC');
-      return res.status(200).json(rows.map(({ password, ...student }) => student));
+      const [rows] = session.role === 'student'
+        ? await pool.query('SELECT *, DATE(created_at) as reg_date FROM students WHERE id = ? ORDER BY id DESC', [session.student_id])
+        : await pool.query('SELECT *, DATE(created_at) as reg_date FROM students ORDER BY id DESC');
+      return res.status(200).json(rows.map(({ password, ...student }) => ({
+        ...student,
+        ...(student.photo_data ? { photo_data: validRasterImage(student.photo_data) ? student.photo_data : '' } : {})
+      })));
     } catch (error) {
       console.error('Fetch error:', error);
       return res.status(500).json({ error: error.message });
@@ -263,12 +316,13 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'Record ID is required.' });
       }
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
-      if (staffRoleFor(body.username, body.password) !== 'admin') {
-        return res.status(401).json({ error: 'Admin authentication is required to delete records.' });
-      }
+      const session = await authenticate(req, pool);
+      if (!session) return res.status(401).json({ error: 'Admin sign-in is required to delete records.' });
+      if (session.role !== 'admin') return res.status(403).json({ error: 'Only an admin can delete records.' });
       if (body.permission_code !== 'DELETE WITH hod') {
         return res.status(403).json({ error: 'The HOD permission code is incorrect. The record was not deleted.' });
       }
+      await revokeStudentSessions(pool, id);
       await pool.query('DELETE FROM students WHERE id = ?', [id]);
       return res.status(200).json({ success: true, message: 'Record deleted successfully.' });
     } catch (error) {
@@ -283,8 +337,93 @@ module.exports = async (req, res) => {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
       const { action, username, password } = body;
 
+      if (action === 'student_login') {
+        const regNo = String(body.reg_no || '').trim();
+        if (!regNo || regNo.length > 100 || typeof password !== 'string' || !password || password.length > 256) {
+          return res.status(400).json({ error: 'Registration number and password are required.' });
+        }
+        const limit = await checkLoginLimit(pool, `student:${regNo}`);
+        if (limit.limited) return res.status(429).json({ error: 'Too many sign-in attempts. Try again later.', retry_after: limit.retryAfter });
+        await ensurePhotoTable();
+        const [rows] = await pool.query(`
+          SELECT students.*,
+            COALESCE(p_id.photo_data, p_reg.photo_data) AS photo_data,
+            COALESCE(p_id.file_name, p_reg.file_name) AS file_name,
+            COALESCE(p_id.photo_status, p_reg.photo_status) AS photo_status,
+            COALESCE(p_id.updated_at, p_reg.updated_at) AS photo_updated_at
+          FROM students
+          LEFT JOIN student_photos p_id ON p_id.student_id = students.id
+          LEFT JOIN student_photos p_reg ON LOWER(p_reg.reg_no) = LOWER(students.reg_no)
+          WHERE LOWER(students.reg_no) = LOWER(?)
+          LIMIT 1
+        `, [regNo]);
+        if (!rows.length || !verifyPassword(password, rows[0].password)) {
+          await recordFailedLogin(pool, limit.accountKey);
+          return res.status(401).json({ error: !rows.length ? 'This registration number is not registered by the administration.' : 'Incorrect password.' });
+        }
+        await clearLoginFailures(pool, limit.accountKey);
+        const mustChangePassword = verifyPassword('123', rows[0].password);
+        const { password: ignoredPassword, ...student } = rows[0];
+        if (student.photo_data && !validRasterImage(student.photo_data)) student.photo_data = '';
+        student.photo_status = normalizePhotoStatus(student.photo_data, student.photo_status);
+        const token = await createSession(pool, {
+          role: 'student',
+          studentId: student.id,
+          mustChangePassword
+        });
+        return res.status(200).json({ success: true, token, student, must_change_password: mustChangePassword });
+      }
+
+      if (action === 'login' || (username !== undefined && password !== undefined)) {
+        if (typeof username !== 'string' || username.length > 100 || typeof password !== 'string' || password.length > 256) {
+          return res.status(400).json({ error: 'Username and password are required.' });
+        }
+        const limit = await checkLoginLimit(pool, `staff:${username}`);
+        if (limit.limited) return res.status(429).json({ error: 'Too many sign-in attempts. Try again later.', retry_after: limit.retryAfter });
+        const credential = staffCredential(username, password);
+        if (!credential) {
+          await recordFailedLogin(pool, limit.accountKey);
+          return res.status(401).json({ error: 'Invalid username or password.' });
+        }
+        await clearLoginFailures(pool, limit.accountKey);
+        const token = await createSession(pool, { role: credential.role, username: credential.username });
+        return res.status(200).json({ success: true, user: credential.username, role: credential.role, token });
+      }
+
+      const session = await authenticate(req, pool);
+      if (!session) return res.status(401).json({ error: 'Sign in is required for this action.' });
+      if (action === 'logout') {
+        await pool.query('DELETE FROM portal_sessions WHERE token_hash = ?', [session.tokenHash]);
+        return res.status(200).json({ success: true });
+      }
+      if (session.must_change_password && !['change_password', 'student_session'].includes(action)) {
+        return res.status(403).json({ error: 'Change your temporary password before accessing the portal.' });
+      }
+      const adminActions = new Set([
+        'admin_photo_review', 'confirm_photo_batch', 'mark_card_printed',
+        'update_record', 'admin_reset_password'
+      ]);
+      const studentActions = new Set([
+        'get_id_collection_status', 'request_id_collection_otp',
+        'student_upload_photo', 'change_password'
+      ]);
+      const staffActions = new Set([
+        'get_id_collection_records', 'lookup_id_collection_otp', 'confirm_id_collection_otp'
+      ]);
+      if (adminActions.has(action) && session.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin sign-in is required for this action.' });
+      }
+      if (studentActions.has(action) && session.role !== 'student') {
+        return res.status(403).json({ error: 'Student sign-in is required for this action.' });
+      }
+      if (staffActions.has(action) && !['admin', 'staff'].includes(session.role)) {
+        return res.status(403).json({ error: 'Staff sign-in is required for this action.' });
+      }
+      if (!action && !['admin', 'staff'].includes(session.role)) {
+        return res.status(403).json({ error: 'Staff sign-in is required to register students.' });
+      }
+
       if (action === 'get_id_collection_status') {
-        if (!body.reg_no || !password) return res.status(400).json({ error: 'Registration number and password are required.' });
         await ensureIdCollectionTables();
         await pool.query(`CREATE TABLE IF NOT EXISTS student_card_prints (student_id BIGINT NOT NULL PRIMARY KEY, printed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
         const [rows] = await pool.query(`
@@ -297,16 +436,15 @@ module.exports = async (req, res) => {
           LEFT JOIN student_card_prints prints ON prints.student_id = students.id
           LEFT JOIN id_card_collections collections ON collections.student_id = students.id
           LEFT JOIN id_card_collection_otps challenges ON challenges.student_id = students.id
-          WHERE LOWER(students.reg_no) = LOWER(?) AND students.password = ?
+          WHERE students.id = ?
           LIMIT 1
-        `, [body.reg_no.trim(), password]);
-        if (!rows.length) return res.status(401).json({ error: 'Student authentication failed.' });
+        `, [session.student_id]);
+        if (!rows.length) return res.status(401).json({ error: 'Student account is no longer available.' });
         const { id, ...status } = rows[0];
         return res.status(200).json({ success: true, ...status });
       }
 
       if (action === 'request_id_collection_otp') {
-        if (!body.reg_no || !password) return res.status(400).json({ error: 'Registration number and password are required.' });
         await ensureIdCollectionTables();
         await pool.query(`CREATE TABLE IF NOT EXISTS student_card_prints (student_id BIGINT NOT NULL PRIMARY KEY, printed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
         const [students] = await pool.query(`
@@ -314,10 +452,10 @@ module.exports = async (req, res) => {
           FROM students
           LEFT JOIN student_card_prints prints ON prints.student_id = students.id
           LEFT JOIN id_card_collections collections ON collections.student_id = students.id
-          WHERE LOWER(students.reg_no) = LOWER(?) AND students.password = ?
+          WHERE students.id = ?
           LIMIT 1
-        `, [body.reg_no.trim(), password]);
-        if (!students.length) return res.status(401).json({ error: 'Student authentication failed.' });
+        `, [session.student_id]);
+        if (!students.length) return res.status(401).json({ error: 'Student account is no longer available.' });
         const student = students[0];
         if (student.collected_at) return res.status(409).json({ error: 'This ID card has already been collected.', collected_at: student.collected_at });
         if (!student.printed_at) return res.status(409).json({ error: 'Your ID card is not ready for collection yet.' });
@@ -358,7 +496,6 @@ module.exports = async (req, res) => {
       }
 
       if (action === 'get_id_collection_records') {
-        if (!staffRoleFor(username, password)) return res.status(401).json({ error: 'Staff authentication failed.' });
         await ensureIdCollectionTables();
         await pool.query(`CREATE TABLE IF NOT EXISTS student_card_prints (student_id BIGINT NOT NULL PRIMARY KEY, printed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
         const [rows] = await pool.query(`
@@ -373,12 +510,10 @@ module.exports = async (req, res) => {
       }
 
       if (action === 'lookup_id_collection_otp' || action === 'confirm_id_collection_otp') {
-        const staffRole = staffRoleFor(username, password);
-        if (!staffRole) return res.status(401).json({ error: 'Staff authentication failed.' });
         if (!/^\d{6}$/.test(String(body.code || ''))) return res.status(400).json({ error: 'A six-digit code is required.' });
         await ensureIdCollectionTables();
         await pool.query(`CREATE TABLE IF NOT EXISTS student_card_prints (student_id BIGINT NOT NULL PRIMARY KEY, printed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
-        const rateLimit = await collectionOtpRateLimit(username);
+        const rateLimit = await collectionOtpRateLimit(session.username);
         if (rateLimit.limited) return res.status(429).json({ error: 'Too many incorrect code attempts. Please wait before trying again.', retry_after: rateLimit.retryAfter });
         const submittedHash = hashCollectionOtp(String(body.code));
         const connection = await pool.getConnection();
@@ -399,7 +534,7 @@ module.exports = async (req, res) => {
           `, [submittedHash]);
           if (!matches.length) {
             await connection.rollback();
-            await recordFailedCollectionOtp(username);
+            await recordFailedCollectionOtp(session.username);
             return res.status(400).json({ error: 'No active student collection matches that code.' });
           }
           if (matches.length > 1) {
@@ -409,7 +544,7 @@ module.exports = async (req, res) => {
           const student = matches[0];
           if (Number(student.seconds_left) <= 0) {
             await connection.query(`UPDATE id_card_collection_otps SET status = 'EXPIRED' WHERE student_id = ?`, [student.id]);
-            await connection.query(`INSERT INTO id_card_collection_events (student_id, reg_no, card_number, event_type, actor) VALUES (?, ?, ?, 'OTP_EXPIRED', ?)`, [student.id, student.reg_no, student.card_number, username]);
+            await connection.query(`INSERT INTO id_card_collection_events (student_id, reg_no, card_number, event_type, actor) VALUES (?, ?, ?, 'OTP_EXPIRED', ?)`, [student.id, student.reg_no, student.card_number, session.username]);
             await connection.commit();
             return res.status(410).json({ error: 'The collection code has expired. Ask the student to generate a new one.' });
           }
@@ -422,11 +557,11 @@ module.exports = async (req, res) => {
           }
 
           await connection.query(`UPDATE id_card_collection_otps SET status = 'VERIFIED', verified_at = CURRENT_TIMESTAMP WHERE student_id = ?`, [student.id]);
-          await connection.query(`INSERT INTO id_card_collections (student_id, reg_no, card_number, collected_by) VALUES (?, ?, ?, ?)`, [student.id, student.reg_no, student.card_number, username]);
-          await connection.query(`INSERT INTO id_card_collection_events (student_id, reg_no, card_number, event_type, actor) VALUES (?, ?, ?, 'COLLECTED', ?)`, [student.id, student.reg_no, student.card_number, username]);
+          await connection.query(`INSERT INTO id_card_collections (student_id, reg_no, card_number, collected_by) VALUES (?, ?, ?, ?)`, [student.id, student.reg_no, student.card_number, session.username]);
+          await connection.query(`INSERT INTO id_card_collection_events (student_id, reg_no, card_number, event_type, actor) VALUES (?, ?, ?, 'COLLECTED', ?)`, [student.id, student.reg_no, student.card_number, session.username]);
           const [result] = await connection.query('SELECT collected_at FROM id_card_collections WHERE student_id = ?', [student.id]);
           await connection.commit();
-          return res.status(200).json({ success: true, collected_at: result[0].collected_at, collected_by: username, student_name: student.student_name, reg_no: student.reg_no, card_number: student.card_number });
+          return res.status(200).json({ success: true, collected_at: result[0].collected_at, collected_by: session.username, student_name: student.student_name, reg_no: student.reg_no, card_number: student.card_number });
         } catch (error) {
           await connection.rollback();
           throw error;
@@ -435,46 +570,17 @@ module.exports = async (req, res) => {
         }
       }
 
-      if (action === 'student_login') {
-        if (!body.reg_no || !password) {
-          return res.status(400).json({ error: 'Registration number and password are required.' });
-        }
-        await ensurePhotoTable();
-        const [rows] = await pool.query(`
-          SELECT students.*,
-            COALESCE(p_id.photo_data, p_reg.photo_data) AS photo_data,
-            COALESCE(p_id.file_name, p_reg.file_name) AS file_name,
-            COALESCE(p_id.photo_status, p_reg.photo_status) AS photo_status,
-            COALESCE(p_id.updated_at, p_reg.updated_at) AS photo_updated_at
-          FROM students
-          LEFT JOIN student_photos p_id ON p_id.student_id = students.id
-          LEFT JOIN student_photos p_reg ON LOWER(p_reg.reg_no) = LOWER(students.reg_no)
-          WHERE LOWER(students.reg_no) = LOWER(?)
-          LIMIT 1
-        `, [body.reg_no.trim()]);
-        if (!rows.length) return res.status(401).json({ error: 'Wrong student ID number.' });
-        if (rows[0].password !== password) return res.status(401).json({ error: 'Incorrect password.' });
-        const mustChangePassword = rows[0].password === '123';
-        const { password: ignoredPassword, ...student } = rows[0];
-        student.photo_status = normalizePhotoStatus(student.photo_data, student.photo_status);
-        return res.status(200).json({ success: true, student, must_change_password: mustChangePassword });
-      }
-
       if (action === 'student_upload_photo') {
-        if (!body.reg_no || !body.password || !body.photo_data || !body.file_name) {
-          return res.status(400).json({ error: 'Student authentication and a photo are required.' });
-        }
-        if (!/^data:image\/(jpeg|png|webp);base64,/.test(body.photo_data)) {
-          return res.status(400).json({ error: 'Upload a JPG, PNG, or WebP image.' });
-        }
+        if (!body.photo_data || !body.file_name) return res.status(400).json({ error: 'A photo and file name are required.' });
+        if (!validRasterImage(body.photo_data)) return res.status(400).json({ error: 'Upload a valid JPG, PNG, or WebP image up to 3 MB.' });
         await ensurePhotoTable();
-        const [students] = await pool.query('SELECT id, reg_no FROM students WHERE LOWER(reg_no) = LOWER(?) AND password = ? LIMIT 1', [body.reg_no.trim(), body.password]);
+        const [students] = await pool.query('SELECT id, reg_no FROM students WHERE id = ? LIMIT 1', [session.student_id]);
         if (!students.length) return res.status(401).json({ error: 'Student authentication failed.' });
         await pool.query(`
           INSERT INTO student_photos (student_id, reg_no, photo_data, file_name, photo_status)
           VALUES (?, ?, ?, ?, 'Pending')
           ON DUPLICATE KEY UPDATE photo_data = VALUES(photo_data), file_name = VALUES(file_name), photo_status = 'Pending'
-        `, [students[0].id, students[0].reg_no, body.photo_data, body.file_name]);
+        `, [students[0].id, students[0].reg_no, body.photo_data, String(body.file_name).slice(0, 255)]);
         return res.status(200).json({ success: true, photo_status: 'Pending', message: 'Photo submitted for approval.' });
       }
 
@@ -489,46 +595,41 @@ module.exports = async (req, res) => {
       }
 
       if (action === 'change_password') {
-        if (!body.reg_no || !body.current_password || !body.new_password) {
-          return res.status(400).json({ error: 'Registration number, current password, and new password are required.' });
+        if (typeof body.current_password !== 'string' || typeof body.new_password !== 'string') {
+          return res.status(400).json({ error: 'Current and new passwords are required.' });
         }
-        if (String(body.new_password).length < 3) {
-          return res.status(400).json({ error: 'New password must be at least 3 characters.' });
+        if (body.new_password.length < 8 || body.new_password.length > 256) {
+          return res.status(400).json({ error: 'New password must be between 8 and 256 characters.' });
         }
         if (body.new_password === '123') {
           return res.status(400).json({ error: 'Choose a password other than the default password 123.' });
         }
-        const [result] = await pool.query(
-          'UPDATE students SET password = ? WHERE LOWER(reg_no) = LOWER(?) AND password = ?',
-          [body.new_password, body.reg_no.trim(), body.current_password]
-        );
-        if (!result.affectedRows) return res.status(401).json({ error: 'Current password is incorrect.' });
-        return res.status(200).json({ success: true, message: 'Password updated successfully.' });
+        const [students] = await pool.query('SELECT id, password FROM students WHERE id = ? LIMIT 1', [session.student_id]);
+        if (!students.length || (!session.must_change_password && !verifyPassword(body.current_password, students[0].password))) {
+          return res.status(401).json({ error: 'Current password is incorrect.' });
+        }
+        await pool.query('UPDATE students SET password = ? WHERE id = ?', [hashPassword(body.new_password), session.student_id]);
+        await revokeStudentSessions(pool, session.student_id);
+        const token = await createSession(pool, { role: 'student', studentId: session.student_id });
+        return res.status(200).json({ success: true, token, message: 'Password updated successfully.' });
       }
 
       if (action === 'admin_reset_password') {
         if (!body.student_id && !body.reg_no) {
           return res.status(400).json({ error: 'Student ID or registration number is required.' });
         }
+        const [students] = await pool.query(
+          body.student_id ? 'SELECT id FROM students WHERE id = ? LIMIT 1' : 'SELECT id FROM students WHERE LOWER(reg_no) = LOWER(?) LIMIT 1',
+          [body.student_id || body.reg_no]
+        );
+        if (!students.length) return res.status(404).json({ error: 'Student not found.' });
         const [result] = await pool.query(
-          body.student_id ? 'UPDATE students SET password = ? WHERE id = ?' : 'UPDATE students SET password = ? WHERE LOWER(reg_no) = LOWER(?)',
-          ['123', body.student_id || body.reg_no]
+          'UPDATE students SET password = ? WHERE id = ?',
+          [hashPassword('123'), students[0].id]
         );
         if (!result.affectedRows) return res.status(404).json({ error: 'Student not found.' });
+        await revokeStudentSessions(pool, students[0].id);
         return res.status(200).json({ success: true, message: 'Student password reset to 123.' });
-      }
-
-      // Authentication handling
-      if (action === 'login' || (username !== undefined && password !== undefined)) {
-        if (username === 'admin' && password === 'HoD123') {
-          return res.status(200).json({ success: true, user: username, role: 'admin' });
-        } else if (username === 'president_muesa' && password === 'muesa2026') {
-          return res.status(200).json({ success: true, user: username, role: 'user' });
-        } else if (username === 'financial_muesa' && password === 'muesa2026') {
-          return res.status(200).json({ success: true, user: username, role: 'user' });
-        } else {
-          return res.status(401).json({ error: 'Invalid username or password.' });
-        }
       }
 
       if (action === 'confirm_photo_batch') {
@@ -556,8 +657,8 @@ module.exports = async (req, res) => {
             if (!photo.student_id || !photo.reg_no || !photo.photo_data || !photo.file_name) {
               throw new Error('Each photo mapping requires a student, registration number, file name, and image.');
             }
-            if (!/^data:image\/(jpeg|png|webp|gif);base64,/.test(photo.photo_data)) {
-              throw new Error(`Unsupported image data for ${photo.file_name}.`);
+            if (!validRasterImage(photo.photo_data)) {
+              throw new Error(`Unsupported or oversized raster image for ${photo.file_name} (maximum 3 MB).`);
             }
             await connection.query(`
               INSERT INTO student_photos (student_id, reg_no, photo_data, file_name, photo_status)
@@ -610,6 +711,27 @@ module.exports = async (req, res) => {
         return res.status(200).json({ success: true, message: 'Record updated successfully.' });
       }
 
+      if (action === 'student_session') {
+        if (session.role !== 'student') return res.status(403).json({ error: 'Student sign-in is required.' });
+        if (session.must_change_password) {
+          return res.status(200).json({ success: true, must_change_password: true });
+        }
+        const [rows] = await pool.query(`
+          SELECT students.id, students.student_name, students.reg_no, students.student_class, students.year,
+            students.gender, students.payment_type, students.card_number,
+            COALESCE(p_id.photo_data, p_reg.photo_data) AS photo_data,
+            COALESCE(p_id.photo_status, p_reg.photo_status) AS photo_status
+          FROM students
+          LEFT JOIN student_photos p_id ON p_id.student_id = students.id
+          LEFT JOIN student_photos p_reg ON LOWER(p_reg.reg_no) = LOWER(students.reg_no)
+          WHERE students.id = ? LIMIT 1
+        `, [session.student_id]);
+        if (!rows.length) return res.status(401).json({ error: 'Student account is no longer available.' });
+        if (rows[0].photo_data && !validRasterImage(rows[0].photo_data)) rows[0].photo_data = '';
+        rows[0].photo_status = normalizePhotoStatus(rows[0].photo_data, rows[0].photo_status);
+        return res.status(200).json({ success: true, student: rows[0], must_change_password: false });
+      }
+
       const {
         student_name,
         reg_no,
@@ -635,8 +757,8 @@ module.exports = async (req, res) => {
 
       // Insert record
       const query = `
-        INSERT INTO students (student_name, reg_no, student_class, year, gender, email, phone, payment_type, amount, registered_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO students (student_name, reg_no, student_class, year, gender, email, phone, payment_type, amount, registered_by, password)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const values = [
@@ -649,7 +771,8 @@ module.exports = async (req, res) => {
         phone || null,
         finalPaymentType,
         amount,
-        registered_by || 'Admin'
+        registered_by || session.username || 'Admin',
+        hashPassword('123')
       ];
 
       const [result] = await pool.query(query, values);
@@ -688,15 +811,15 @@ module.exports = async (req, res) => {
                   <h2 style="color: #006633; margin-top: 0;">MUESA Official Receipt</h2>
                   <p>MUTEESA I Royal University Education Students Association</p>
                   <hr style="border: 0; border-top: 1px solid #eee;" />
-                  <p>Dear <strong>${student_name}</strong>,</p>
+                  <p>Dear <strong>${escapeHtml(student_name)}</strong>,</p>
                   <p>Your payment has been successfully recorded on the MUESA Portal.</p>
                   <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Student Number:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${reg_no}</td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Class / Semester:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${student_class}</td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Year:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${year}</td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Payment Type:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${finalPaymentType}</td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Student Number:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${escapeHtml(reg_no)}</td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Class / Semester:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${escapeHtml(student_class)}</td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Year:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${escapeHtml(year)}</td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Payment Type:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${escapeHtml(finalPaymentType)}</td></tr>
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Amount Paid:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0; color: #006633; font-weight: bold;">UGX ${Number(amount).toLocaleString()}</td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Registered By:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${registered_by}</td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;"><strong>Registered By:</strong></td><td style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">${escapeHtml(registered_by || session.username || 'Admin')}</td></tr>
                   </table>
                 </div>
               `

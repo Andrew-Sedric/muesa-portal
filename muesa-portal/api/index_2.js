@@ -1,4 +1,5 @@
 const mysql = require('mysql2/promise');
+const { applySecurityHeaders, authenticate } = require('./security');
 
 const pool = mysql.createPool({
   host: process.env.TIDB_HOST,
@@ -61,13 +62,26 @@ function requiredText(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function validPaperImage(dataUrl) {
+  const match = typeof dataUrl === 'string'
+    && dataUrl.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/);
+  if (!match) return false;
+  const bytes = Buffer.from(match[2], 'base64');
+  if (!bytes.length || bytes.length > 3 * 1024 * 1024) return false;
+  if (match[1] === 'jpeg') return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (match[1] === 'png') return bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  return bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP';
+}
+
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  applySecurityHeaders(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   try {
+    const session = await authenticate(req, pool);
+    if (!session) return res.status(401).json({ error: 'Sign in is required to access the document vault.' });
+    if (session.must_change_password) return res.status(403).json({ error: 'Change your temporary password before accessing the portal.' });
+
     await ensurePastPapersTable();
 
     if (req.method === 'GET') {
@@ -77,6 +91,7 @@ module.exports = async (req, res) => {
         if (!Number.isSafeInteger(paperId) || paperId < 1) return res.status(400).json({ error: 'A valid document ID is required.' });
         const [rows] = await pool.query('SELECT image_data FROM past_papers WHERE id = ?', [paperId]);
         if (!rows.length) return res.status(404).json({ error: 'Document page not found.' });
+        if (!validPaperImage(rows[0].image_data)) return res.status(415).json({ error: 'This document page is not a supported raster image.' });
         return res.status(200).json(rows[0]);
       }
       if (action !== 'get_past_papers') return res.status(400).json({ error: 'A valid action is required.' });
@@ -88,6 +103,9 @@ module.exports = async (req, res) => {
     if (req.method === 'POST') {
       const body = parseBody(req);
       if (body.action === 'upload_past_paper') {
+        if (!['admin', 'staff'].includes(session.role)) {
+          return res.status(403).json({ error: 'Only authorized staff can upload past papers.' });
+        }
         const fields = ['course_code', 'title', 'paper_year', 'study_year', 'semester', 'file_name', 'image_data'];
         const pageImages = Array.isArray(body.image_data) ? body.image_data : [body.image_data];
         const pageNames = Array.isArray(body.file_name) ? body.file_name : pageImages.map(() => body.file_name);
@@ -97,8 +115,8 @@ module.exports = async (req, res) => {
         if (!['Year 1', 'Year 2', 'Year 3'].includes(body.study_year) || !['Semester 1', 'Semester 2'].includes(body.semester)) {
           return res.status(400).json({ error: 'Choose a valid study year and semester.' });
         }
-        if (pageImages.some(image => !/^data:image\/[a-z0-9.+-]+;base64,/.test(image))) {
-          return res.status(400).json({ error: 'Every selected file must be a valid image.' });
+        if (pageImages.length > 40 || pageImages.reduce((total, image) => total + String(image).length, 0) > 4 * 1024 * 1024 || pageImages.some(image => !validPaperImage(image))) {
+          return res.status(400).json({ error: 'Upload up to 40 valid JPG, PNG, or WebP pages, no larger than 3 MB each and 4 MB total.' });
         }
         const connection = await pool.getConnection();
         try {
@@ -121,6 +139,9 @@ module.exports = async (req, res) => {
         }
       }
       if (body.action === 'delete_past_paper') {
+        if (!['admin', 'staff'].includes(session.role)) {
+          return res.status(403).json({ error: 'Only authorized staff can delete past papers.' });
+        }
         if (!body.id) return res.status(400).json({ error: 'Document ID is required.' });
         const [result] = await pool.query('DELETE FROM past_papers WHERE id = ?', [body.id]);
         if (!result.affectedRows) return res.status(404).json({ error: 'Document not found.' });

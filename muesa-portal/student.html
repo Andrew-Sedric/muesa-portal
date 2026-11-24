@@ -72,7 +72,7 @@
       <p class="muted">Sign in with your registration number and password.</p>
       <form class="form" id="loginForm">
         <label>Registration / Student Number<input id="loginRegNo" required autocomplete="username"></label>
-        <label>Password<input id="loginPassword" type="password" required autocomplete="current-password"></label>
+        <label>Password<input id="loginPassword" type="password" required maxlength="256" autocomplete="current-password"></label>
         <button class="btn btn-primary" type="submit">Sign in</button>
       </form>
       <p class="message" id="loginMessage" role="alert"></p>
@@ -84,8 +84,8 @@
       <p class="muted">Your account is still using the default password. Set a new password before continuing to your student portal.</p>
       <p class="muted" id="requiredPasswordStudent"></p>
       <form class="form" id="requiredPasswordForm">
-        <label>New password<input id="requiredNewPassword" type="password" required minlength="3" autocomplete="new-password"></label>
-        <label>Confirm new password<input id="requiredConfirmPassword" type="password" required minlength="3" autocomplete="new-password"></label>
+        <label>New password<input id="requiredNewPassword" type="password" required minlength="8" maxlength="256" autocomplete="new-password"></label>
+        <label>Confirm new password<input id="requiredConfirmPassword" type="password" required minlength="8" maxlength="256" autocomplete="new-password"></label>
         <button class="btn btn-primary" id="requiredPasswordSubmit" type="submit">Change password and continue</button>
       </form>
       <p class="message" id="requiredPasswordMessage" role="alert"></p>
@@ -106,7 +106,7 @@
       <section class="panel id-preview-panel portal-section" id="idSection" oncontextmenu="return false"><h2>My ID Card Preview</h2><p class="muted">This preview is for viewing only. Your card becomes available after photo approval.</p><div class="id-preview" id="idPreview"><header class="id-preview-head"><img src="mru logo.png" alt="Muteesa I Royal University logo"><div><strong><em>MUTEESA I</em> <span>ROYAL UNIVERSITY</span></strong><span>EDUCATION STUDENTS ASSOCIATION</span></div><img src="muesa bg.png" alt="MUESA association crest"></header><div class="id-preview-main"><div class="id-preview-photo-column"><div id="previewPhoto" class="id-preview-photo empty">No Picture</div><div class="id-preview-idno">ID NO:<strong id="previewIdNumber"></strong><svg id="previewBarcode" class="id-preview-barcode" role="img" aria-label="Student barcode"></svg></div></div><div class="id-preview-info"><h2><span id="previewName"></span><small style="display:block;color:#e21c11;font-size:70%;font-weight:normal;margin-top:1%">STUDENT ID CARD</small></h2><p><b>DEPARTMENT</b><br>Education Students Association</p><p><b>GENDER</b><br><span id="previewGender">Not set</span></p><p><b>STUDENT NUMBER</b><br><span id="previewRegNo"></span></p><div class="id-preview-dates"><div><b>ISSUE DATE</b><span>01/08/2026</span></div><div><b>EXPIRY DATE</b><span>01/01/2030</span></div></div><div id="previewQr" class="id-preview-qr"></div><div class="id-preview-verify">SCAN TO<br>VERIFY</div></div></div></div></section>
       <section class="panel collection-panel portal-section" id="collectionSection"><h2>ID card collection</h2><p class="muted">When staff is ready to hand over your printed card, generate a one-time code and read it to them.</p><p class="collection-status" id="collectionStatus" role="status">Checking card status...</p><div class="collection-code" id="collectionCode" hidden></div><p class="muted" id="collectionCodeHint" hidden></p><button class="btn btn-primary" id="collectIdBtn" type="button" disabled>Collect ID</button></section>
       <section class="panel vault-panel portal-section" id="vaultSection" oncontextmenu="return false"><h2>Past Papers &amp; Document Vault</h2><p class="muted">Available to paid association members. Documents are view-only and watermarked.</p><div class="vault-tools"><input id="vaultSearch" type="search" placeholder="Search subject, title, or year" aria-label="Search past papers"></div><p class="message" id="vaultMessage" role="alert"></p><div id="vaultList"><p class="muted">Loading documents...</p></div></section>
-      <section class="panel password-panel portal-section" id="securitySection"><h2>Security</h2><p class="muted">Use a password you do not share with anyone else.</p><form class="form" id="passwordForm"><label>Current password<input id="currentPassword" type="password" required autocomplete="current-password"></label><label>New password<input id="newPassword" type="password" required minlength="3" autocomplete="new-password"></label><label>Confirm new password<input id="confirmPassword" type="password" required minlength="3" autocomplete="new-password"></label><button class="btn btn-primary" type="submit">Update password</button></form><p class="message" id="passwordMessage" role="alert"></p></section>
+      <section class="panel password-panel portal-section" id="securitySection"><h2>Security</h2><p class="muted">Use a password you do not share with anyone else.</p><form class="form" id="passwordForm"><label>Current password<input id="currentPassword" type="password" required maxlength="256" autocomplete="current-password"></label><label>New password<input id="newPassword" type="password" required minlength="8" maxlength="256" autocomplete="new-password"></label><label>Confirm new password<input id="confirmPassword" type="password" required minlength="8" maxlength="256" autocomplete="new-password"></label><button class="btn btn-primary" type="submit">Update password</button></form><p class="message" id="passwordMessage" role="alert"></p></section>
     </section>
   </main>
   <div class="vault-viewer" id="vaultViewer" hidden><div class="vault-viewer-inner"><div class="vault-viewer-head"><div><h2 id="viewerTitle"></h2><p class="muted" id="viewerFileName"></p></div><div><button class="btn btn-quiet" id="previousPage">Previous</button> <button class="btn btn-quiet" id="nextPage">Next</button> <button class="btn btn-quiet" id="closeViewer">Close</button></div></div><canvas id="paperCanvas" aria-label="Watermarked document viewer"></canvas></div></div>
@@ -120,6 +120,21 @@
     let collectionCountdown = null;
     let collectionStatusPoll = null;
     const setMessage = (element, text, success = false) => { element.textContent = text; element.className = `message${success ? ' success' : ''}`; };
+    function savedStudentSession() {
+      try { return JSON.parse(sessionStorage.getItem('muesaStudentSession') || 'null'); }
+      catch (error) { sessionStorage.removeItem('muesaStudentSession'); return null; }
+    }
+    function apiFetch(url, options = {}) {
+      const session = savedStudentSession();
+      const headers = new Headers(options.headers || {});
+      if (session && session.token) headers.set('Authorization', `Bearer ${session.token}`);
+      return fetch(url, { ...options, headers });
+    }
+    function saveStudentSession(studentData, token, mustChangePassword = false) {
+      sessionStorage.setItem('muesaStudentSession', JSON.stringify({
+        student: studentData, token, must_change_password: mustChangePassword
+      }));
+    }
     function renderPhoto(photoData) {
       photoData = photoData || student.photo_data || '';
       const box = $('profilePhotoBox');
@@ -165,7 +180,7 @@
     }
     async function loadCollectionStatus(preserveVisibleCode = false) {
       try {
-        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_id_collection_status', reg_no: student.reg_no, password: sessionPassword() }) });
+        const response = await apiFetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_id_collection_status' }) });
         const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Unable to check card collection status.');
         if (data.collected_at) {
           stopCollectionCountdown(); $('collectionCode').hidden = true; $('collectionCodeHint').hidden = true; $('collectionStatus').textContent = 'Your handover has been recorded.'; $('collectIdBtn').hidden = false; $('collectIdBtn').disabled = true; $('collectIdBtn').textContent = `ID collected on ${formatCollectionDate(data.collected_at)}`; return;
@@ -189,7 +204,7 @@
     $('collectIdBtn').addEventListener('click', async () => {
       $('collectIdBtn').disabled = true;
       try {
-        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'request_id_collection_otp', reg_no: student.reg_no, password: sessionPassword() }) });
+        const response = await apiFetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'request_id_collection_otp' }) });
         const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Unable to generate a collection code.');
         $('collectionCode').textContent = data.code; $('collectionCode').hidden = false; $('collectionCodeHint').hidden = false; $('collectionCodeHint').textContent = 'Read this code to staff. It expires in five minutes and can only be used once.';
         $('collectionStatus').textContent = 'Show this code to the staff member handing over your card.';
@@ -217,12 +232,12 @@
     }
     function escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[character])); }
     async function loadVault() {
-      try { const response = await fetch(`/api/index_2?action=get_past_papers&reg_no=${encodeURIComponent(student.reg_no)}`); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Unable to load the document vault.'); vaultPapers = data; renderVault(); }
+      try { const response = await apiFetch('/api/index_2?action=get_past_papers'); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Unable to load the document vault.'); vaultPapers = data; renderVault(); }
       catch (error) { vaultPapers = []; $('vaultList').innerHTML = ''; setMessage($('vaultMessage'), error.message); }
     }
     async function loadPaperPage(page) {
       if (page.image_data) return page.image_data;
-      const response = await fetch(`/api/index_2?action=get_past_paper_page&id=${encodeURIComponent(page.id)}`);
+      const response = await apiFetch(`/api/index_2?action=get_past_paper_page&id=${encodeURIComponent(page.id)}`);
       const data = await response.json();
       if (!response.ok || !data.image_data) throw new Error(data.error || 'Unable to load this paper page.');
       page.image_data = data.image_data;
@@ -286,7 +301,7 @@
         const password = $('loginPassword').value;
         const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'student_login', reg_no: $('loginRegNo').value, password }) });
         const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Unable to sign in.');
-        sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student: data.student, password }));
+        saveStudentSession(data.student, data.token, data.must_change_password);
         $('loginForm').reset();
         if (data.must_change_password || password === '123') showRequiredPassword(data.student, password);
         else { showProfile(data.student); $('currentPassword').value = password; }
@@ -310,27 +325,26 @@
         setMessage($('requiredPasswordMessage'), 'New passwords do not match.');
         return;
       }
-      if (newPassword === '123') {
-        setMessage($('requiredPasswordMessage'), 'Choose a password other than the default password 123.');
+      if (newPassword.length < 8 || newPassword === '123') {
+        setMessage($('requiredPasswordMessage'), 'Choose a password with at least 8 characters other than 123.');
         return;
       }
       const submitButton = $('requiredPasswordSubmit');
       submitButton.disabled = true;
       setMessage($('requiredPasswordMessage'), 'Updating your password...');
       try {
-        const response = await fetch('/api/index', {
+        const response = await apiFetch('/api/index', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'change_password',
-            reg_no: student.reg_no,
             current_password: $('requiredPasswordForm').dataset.currentPassword,
             new_password: newPassword
           })
         });
         const data = await response.json();
         if (!response.ok || !data.success) throw new Error(data.error || 'Unable to update password.');
-        sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student, password: newPassword }));
+        saveStudentSession(student, data.token, false);
         $('currentPassword').value = newPassword;
         showProfile(student);
       } catch (error) {
@@ -339,46 +353,53 @@
         submitButton.disabled = false;
       }
     });
-    function sessionPassword() { const session = JSON.parse(sessionStorage.getItem('muesaStudentSession') || '{}'); return session.password || $('currentPassword').value; }
     document.querySelectorAll('.portal-menu button').forEach(button => button.addEventListener('click', () => {
       document.querySelectorAll('.portal-menu button').forEach(item => item.classList.toggle('active', item === button));
       document.querySelectorAll('.portal-section').forEach(section => section.classList.toggle('active', section.id === button.dataset.section));
     }));
     $('photoForm').addEventListener('submit', async event => {
       event.preventDefault(); const file = $('photoInput').files[0]; if (!file) return;
-      try { const photoData = await readImage(file); const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'student_upload_photo', reg_no: student.reg_no, password: sessionPassword(), photo_data: photoData, file_name: file.name }) }); const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Unable to submit photo.'); student.photo_data = photoData; student.photo_status = data.photo_status; sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student, password: sessionPassword() })); $('photoInput').value = ''; showProfile(student); setMessage($('profileMessage'), data.message, true); } catch (error) { setMessage($('profileMessage'), error.message); }
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 3 * 1024 * 1024) { setMessage($('profileMessage'), 'Choose a JPG, PNG, or WebP image up to 3 MB.'); return; }
+      try { const photoData = await readImage(file); const response = await apiFetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'student_upload_photo', photo_data: photoData, file_name: file.name }) }); const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Unable to submit photo.'); student.photo_data = photoData; student.photo_status = data.photo_status; saveStudentSession(student, savedStudentSession().token, false); $('photoInput').value = ''; showProfile(student); setMessage($('profileMessage'), data.message, true); } catch (error) { setMessage($('profileMessage'), error.message); }
     });
     $('passwordForm').addEventListener('submit', async event => {
       event.preventDefault();
       if ($('newPassword').value !== $('confirmPassword').value) { setMessage($('passwordMessage'), 'New passwords do not match.'); return; }
       try {
-        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'change_password', reg_no: student.reg_no, current_password: $('currentPassword').value, new_password: $('newPassword').value }) });
+        const response = await apiFetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'change_password', current_password: $('currentPassword').value, new_password: $('newPassword').value }) });
         const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.error || 'Unable to update password.');
-        $('currentPassword').value = $('newPassword').value; sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student, password: $('newPassword').value })); $('newPassword').value = ''; $('confirmPassword').value = ''; setMessage($('passwordMessage'), data.message, true);
+        $('currentPassword').value = $('newPassword').value; saveStudentSession(student, data.token, false); $('newPassword').value = ''; $('confirmPassword').value = ''; setMessage($('passwordMessage'), data.message, true);
       } catch (error) { setMessage($('passwordMessage'), error.message); }
     });
     function readImage(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); }); }
-    function logoutStudent() {
-      sessionStorage.removeItem('muesaStudentSession'); student = null; stopCollectionCountdown();
-      if (collectionStatusPoll) clearInterval(collectionStatusPoll);
-      $('profileView').style.display = 'none'; $('requiredPasswordView').hidden = true; $('loginView').style.display = 'block';
-      $('loginPassword').value = ''; $('loginRegNo').value = ''; setMessage($('loginMessage'), '');
+    async function logoutStudent() {
+      const session = savedStudentSession();
+      try {
+        if (session && session.token) await apiFetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) });
+      } catch (error) {
+        console.error('Unable to revoke student session:', error);
+      } finally {
+        sessionStorage.removeItem('muesaStudentSession'); student = null; stopCollectionCountdown();
+        if (collectionStatusPoll) clearInterval(collectionStatusPoll);
+        $('profileView').style.display = 'none'; $('requiredPasswordView').hidden = true; $('loginView').style.display = 'block';
+        $('loginPassword').value = ''; $('loginRegNo').value = ''; setMessage($('loginMessage'), '');
+      }
     }
     $('logoutBtn').addEventListener('click', logoutStudent);
     $('requiredPasswordLogout').addEventListener('click', logoutStudent);
     document.addEventListener('contextmenu', event => { if (event.target.closest('#profileView')) event.preventDefault(); });
     async function restoreStudentSession() {
-      const savedSession = JSON.parse(sessionStorage.getItem('muesaStudentSession') || 'null');
-      if (!savedSession || !savedSession.student || !savedSession.password) return;
+      const savedSession = savedStudentSession();
+      if (!savedSession || !savedSession.token || !savedSession.student) return;
       try {
-        const response = await fetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'student_login', reg_no: savedSession.student.reg_no, password: savedSession.password }) });
+        const response = await apiFetch('/api/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'student_session' }) });
         const data = await response.json();
         if (!response.ok || !data.success) throw new Error('Session expired.');
-        sessionStorage.setItem('muesaStudentSession', JSON.stringify({ student: data.student, password: savedSession.password }));
-        if (data.must_change_password || savedSession.password === '123') showRequiredPassword(data.student, savedSession.password);
+        const restoredStudent = data.student || savedSession.student;
+        saveStudentSession(restoredStudent, savedSession.token, data.must_change_password);
+        if (data.must_change_password) showRequiredPassword(restoredStudent, '123');
         else {
-          showProfile(data.student);
-          $('currentPassword').value = savedSession.password;
+          showProfile(restoredStudent);
         }
       } catch (error) {
         sessionStorage.removeItem('muesaStudentSession');
